@@ -3,34 +3,34 @@ const { sequelize } = require('../config/database');
 
 const router = express.Router();
 
-// Health check endpoint
-router.get('/', async (req, res) => {
+// Middleware to check the database connection for all routes
+router.use(async (req, res, next) => {
     try {
-        // Check if there's any payload in the request
-        if (req.headers['content-length'] > 0) {
-            return res.status(400).send(); // Send status 400 with no payload
-        }
-
         // Test database connection via Sequelize
         await sequelize.authenticate();
-
-        // Set headers
-        res.set({
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'X-Content-Type-Options': 'nosniff'
-        });
-
-        res.status(200).send(); // Send status 200 with no payload
+        next(); // Proceed to the next middleware/route handler
     } catch (error) {
-        console.error('Database connection failed:', error);
+        console.error('Database connection failed:', error.message);
         res.set({
             'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
             'X-Content-Type-Options': 'nosniff'
         });
-        res.status(503).send(); // Send status 503 with no payload
+        return res.status(503).send(); // Send 503 for all methods if DB is down
     }
+});
+
+// Health check endpoint for GET request
+router.get('/', (req, res) => {
+    // Check if the request contains a body
+    if (req.headers['content-length'] > 0) {
+        return res.status(400).send(); // Send 400 if request contains a payload
+    }
+
+    res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'X-Content-Type-Options': 'nosniff'
+    });
+    return res.status(200).send(); // Send 200 OK if the DB connection is fine
 });
 
 module.exports = router;

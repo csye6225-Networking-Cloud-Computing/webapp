@@ -1,5 +1,4 @@
 const express = require('express');
-const cors = require('cors');
 const dotenv = require('dotenv');
 const { sequelize } = require('./config/database');
 const healthRoutes = require('./routes/health');
@@ -9,39 +8,74 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+let dbConnected = false; // Track the database connection status
+
+// Function to check database connection and log status
+const checkDatabaseConnection = async () => {
+    try {
+        await sequelize.authenticate();
+        if (!dbConnected) {
+            console.log('Database connected...');
+            dbConnected = true;
+        }
+    } catch (error) {
+        if (dbConnected) {
+            console.error('Unable to connect to the database -', error.message);
+            dbConnected = false;
+        }
+    }
+};
+
+// Check database connection on startup
+checkDatabaseConnection();
+setInterval(checkDatabaseConnection, 10000); // Check every 10 seconds
+
+// Handle HEAD requests for health check
+app.head('/healthz', async (req, res) => {
+    try {
+        await sequelize.authenticate();
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.status(405).end(); // 405 Method Not Allowed
+    } catch (error) {
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.status(503).send(); // Send 503 if the DB is down
+    }
+});
+
+// Handle OPTIONS requests for health check
+app.options('/healthz', async (req, res) => {
+    try {
+        await sequelize.authenticate();
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.status(405).end(); // 405 Method Not Allowed
+    } catch (error) {
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.status(503).send(); // Send 503 if the DB is down
+    }
+});
+
 // Enable CORS for all routes
+const cors = require('cors');
 app.use(cors());
 
-// Test database connection
-sequelize.authenticate()
-    .then(() => console.log('Database connected...'))
-    .catch(err => console.error('Unable to connect to the database:', err));
+// Global Middleware: Check database connection for all requests
+app.use(async (req, res, next) => {
+    try {
+        await sequelize.authenticate();
+        next(); // Proceed to the next middleware/route handler if DB is connected
+    } catch (error) {
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.status(503).send(); // Send 503 if the DB is down
+    }
+});
 
-// Health check endpoint
+// Health check endpoint for GET requests
 app.use('/healthz', healthRoutes);
 
-// Explicitly handle HEAD requests by returning 405
-app.head('/healthz', (req, res) => {
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    return res.status(405).send(); // 405 Method Not Allowed
-});
-
-// Explicitly handle OPTIONS requests by returning 405
-app.options('*', (req, res) => {
-    res.status(405).end(); // Send 405 with no body
-});
-
-// Handle all other routes and methods (GET, POST, etc.)
+// Handle all other routes and methods
 app.all('*', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-
-    if (req.method === 'GET') {
-        // Return 200 OK for GET requests
-        return res.status(200).send();
-    }
-
-    // Return 405 Method Not Allowed for any unsupported methods
-    res.status(405).end(); // No message body for 405
+    res.status(405).end(); // 405 Method Not Allowed
 });
 
 // Start the server
