@@ -30,8 +30,8 @@ const checkDatabaseConnection = async () => {
 checkDatabaseConnection();
 setInterval(checkDatabaseConnection, 10000); // Check every 10 seconds
 
-// Handle HEAD requests for health check
-app.head('/healthz', async (req, res) => {
+// Middleware to handle health check requests
+const handleHealthCheck = async (req, res) => {
     try {
         await sequelize.authenticate();
         res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -40,19 +40,11 @@ app.head('/healthz', async (req, res) => {
         res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         return res.status(503).send(); // Send 503 if the DB is down
     }
-});
+};
 
-// Handle OPTIONS requests for health check
-app.options('/healthz', async (req, res) => {
-    try {
-        await sequelize.authenticate();
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        return res.status(405).end(); // 405 Method Not Allowed
-    } catch (error) {
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        return res.status(503).send(); // Send 503 if the DB is down
-    }
-});
+// Handle HEAD and OPTIONS requests for health check
+app.head('/healthz', handleHealthCheck);
+app.options('/healthz', handleHealthCheck);
 
 // Enable CORS for all routes
 const cors = require('cors');
@@ -73,7 +65,7 @@ app.use(async (req, res, next) => {
 app.use('/healthz', healthRoutes);
 
 // Handle all other routes and methods
-app.all('*', (req, res) => {
+app.all('/healthz', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.status(405).end(); // 405 Method Not Allowed
 });
