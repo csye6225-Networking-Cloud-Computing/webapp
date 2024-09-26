@@ -7,6 +7,13 @@ Before you begin, ensure you have met the following requirements:
 - **NPM**: Node Package Manager (NPM) comes with Node.js installation. You can check the version by running `npm -v`.
 - **Database**: Ensure you have a compatible database setup (e.g., MySQL, PostgreSQL) and the necessary credentials.
 
+### Required Libraries
+
+- **MySQL DB**
+- **Node.js**
+- **Sequelize**
+- **express**
+
 ## Build and Deploy Instructions
 
 Follow these steps to build and deploy the application locally:
