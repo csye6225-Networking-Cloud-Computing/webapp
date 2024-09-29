@@ -1,22 +1,22 @@
 const { Sequelize } = require('sequelize');
 const dotenv = require('dotenv');
 
-//Load environment variables from .env file
+// Load environment variables from .env file
 dotenv.config();
 
-//Initialize Sequelize
+// Initialize Sequelize instance with MySQL connection
 const sequelize = new Sequelize(
     process.env.DB_NAME,
     process.env.DB_USER,
     process.env.DB_PASSWORD,
     {
         host: process.env.DB_HOST,
-        logging: false, 
-        dialect: 'mysql', // Using MySQL as the dialect
+        dialect: 'mysql',
+        logging: false, // Disable SQL query logging
         pool: {
-            max: 10, 
-            min: 0, 
-            idle: 10000 
+            max: 10,  // Max connections in pool
+            min: 0,   // Min connections in pool
+            idle: 10000 // Idle time before releasing connection (in ms)
         }
     }
 );

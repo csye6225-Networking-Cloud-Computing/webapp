@@ -8,7 +8,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-let dbConnected = false; // Track the database connection status
+let dbConnected = false;
 
 // Function to check database connection and log status
 const checkDatabaseConnection = async () => {
@@ -38,7 +38,7 @@ const handleHealthCheck = async (req, res) => {
         return res.status(405).end(); // 405 Method Not Allowed
     } catch (error) {
         res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        return res.status(503).send(); // Send 503 if the DB is down
+        return res.status(503).send();
     }
 };
 
@@ -46,31 +46,50 @@ const handleHealthCheck = async (req, res) => {
 app.head('/healthz', handleHealthCheck);
 app.options('/healthz', handleHealthCheck);
 
-// Enable CORS for all routes
+// Enable CORS
 const cors = require('cors');
 app.use(cors());
 
-//Check database connection for all requests
+// Check database connection for all requests
 app.use(async (req, res, next) => {
     try {
         await sequelize.authenticate();
-        next(); //Proceed to the next route handler if DB is connected
+        next();
     } catch (error) {
         res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        return res.status(503).send(); //Send 503 if the DB is down
+        return res.status(503).send();
     }
 });
 
-//Health check endpoint for GET requests
+// Health check endpoint
 app.use('/healthz', healthRoutes);
 
-// Handle all other routes and methods
+// Handle other methods for /healthz
 app.all('/healthz', (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.status(405).end(); //405 Method Not Allowed
+    res.status(405).end();
 });
 
-//Start the server
+// Start the server
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
+
+// --- User API Code ---
+
+const userRoutes = require('./routes/user');
+
+// Middleware to parse JSON bodies
+app.use(express.json());
+
+// Sync the database schema
+sequelize.sync({ alter: false })
+  .then(() => {
+    console.log('Database synced successfully');
+  })
+  .catch((err) => {
+    console.error('Failed to sync database:', err);
+  });
+
+// User Routes
+app.use('/api/users', userRoutes);
