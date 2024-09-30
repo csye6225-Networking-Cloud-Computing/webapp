@@ -2,6 +2,19 @@ const express = require('express');
 const router = express.Router();
 const { sequelize } = require('../config/database');
 
+// Allowed headers for the /healthz endpoint
+const allowedHeaders = ['user-agent', 'accept', 'host', 'accept-encoding', 'connection', 'postman-token'];
+
+// 405 Method Not Allowed for unsupported methods (PUT, POST, PATCH, DELETE, OPTIONS, HEAD)
+const unsupportedMethods = ['PUT', 'POST', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'];
+
+unsupportedMethods.forEach((method) => {
+    router[method.toLowerCase()]('/', (req, res) => {
+        res.set('Allow', 'GET'); // Specify that only GET is allowed
+        return res.status(405).end(); // Return 405 with no message
+    });
+});
+
 // Health check route
 router.get('/', async (req, res) => {
     try {
@@ -11,7 +24,6 @@ router.get('/', async (req, res) => {
         }
 
         // Define and check allowed headers
-        const allowedHeaders = ['user-agent', 'accept', 'host', 'accept-encoding', 'connection', 'postman-token'];
         const requestHeaders = Object.keys(req.headers);
         const disallowedHeaders = requestHeaders.filter(header => !allowedHeaders.includes(header));
 
@@ -21,7 +33,7 @@ router.get('/', async (req, res) => {
                 'Pragma': 'no-cache',
                 'X-Content-Type-Options': 'nosniff'
             });
-            return res.status(400).send(); 
+            return res.status(400).send(); // 400 Bad Request if disallowed headers are present
         }
 
         // Check database connection
