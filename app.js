@@ -1,14 +1,16 @@
 const express = require('express');
 const dotenv = require('dotenv');
-const { sequelize } = require('./config/database');
+const cors = require('cors');
 const healthRoutes = require('./routes/health');
+const userRoutes = require('./routes/user');
+const { sequelize } = require('./config/database'); // Importing the database configuration
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-let dbConnected = false;
+let dbConnected = false; // Track the database connection status
 
 // Function to check database connection and log status
 const checkDatabaseConnection = async () => {
@@ -20,76 +22,63 @@ const checkDatabaseConnection = async () => {
         }
     } catch (error) {
         if (dbConnected) {
-            console.error('Unable to connect to the database -', error.message);
+            console.error('Unable to connect to the database:', error.message);
             dbConnected = false;
         }
     }
 };
 
-// Check database connection on startup
+// Check database connection on startup and at intervals
 checkDatabaseConnection();
-setInterval(checkDatabaseConnection, 10000); // Check every 10 seconds
+setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
 
-// Middleware to handle health check requests
-const handleHealthCheck = async (req, res) => {
-    try {
-        await sequelize.authenticate();
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        return res.status(405).end(); // 405 Method Not Allowed
-    } catch (error) {
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        return res.status(503).send();
+// Add Sequelize sync (bootstrapping logic) to ensure schema is updated
+sequelize.sync({ alter: true }) // Use { force: true } if you want to drop tables and recreate
+    .then(() => {
+        console.log('Database synchronized successfully');
+    })
+    .catch(err => {
+        console.error('Error synchronizing database:', err);
+    });
+
+// Middleware to handle database down (503 Service Unavailable) response
+const checkDBStatusMiddleware = (req, res, next) => {
+    if (!dbConnected) {
+        return res.status(503).end(); // No message, just 503 Service Unavailable
     }
+    next();
 };
 
-// Handle HEAD and OPTIONS requests for health check
-app.head('/healthz', handleHealthCheck);
-app.options('/healthz', handleHealthCheck);
+// Middleware to parse JSON bodies
+app.use(express.json());
 
-// Enable CORS
-const cors = require('cors');
+// Handle unsupported methods (OPTIONS, HEAD) explicitly before CORS
+const unsupportedMethods = ['OPTIONS', 'HEAD'];
+
+// For the /v1/users/self route
+unsupportedMethods.forEach((method) => {
+    app[method.toLowerCase()]('/v1/user/self', checkDBStatusMiddleware, (req, res) => {
+        res.set('Allow', 'GET, PUT');  // Specify the allowed methods for preflight
+        return res.status(405).end();  // Return 405 Method Not Allowed
+    });
+});
+
+// For the /healthz route
+unsupportedMethods.forEach((method) => {
+    app[method.toLowerCase()]('/healthz', checkDBStatusMiddleware, (req, res) => {
+        res.set('Allow', 'GET');  // Specify the allowed method for healthz
+        return res.status(405).end();  // Return 405 Method Not Allowed
+    });
+});
+
+// Enable CORS for all routes after OPTIONS/HEAD handling
 app.use(cors());
 
-// Check database connection for all requests
-app.use(async (req, res, next) => {
-    try {
-        await sequelize.authenticate();
-        next();
-    } catch (error) {
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        return res.status(503).send();
-    }
-});
-
-// Health check endpoint
-app.use('/healthz', healthRoutes);
-
-// Handle other methods for /healthz
-app.all('/healthz', (req, res) => {
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.status(405).end();
-});
+// Define routes and add database status middleware
+app.use('/healthz', checkDBStatusMiddleware, healthRoutes);
+app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
 
 // Start the server
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
-
-// --- User API Code ---
-
-const userRoutes = require('./routes/user');
-
-// Middleware to parse JSON bodies
-app.use(express.json());
-
-// Sync the database schema
-sequelize.sync({ alter: false })
-  .then(() => {
-    console.log('Database synced successfully');
-  })
-  .catch((err) => {
-    console.error('Failed to sync database:', err);
-  });
-
-// User Routes
-app.use('/api/users', userRoutes);
