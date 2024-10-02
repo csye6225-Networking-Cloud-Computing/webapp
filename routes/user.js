@@ -1,5 +1,5 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const User = require('../models/user');
 const authenticate = require('../middleware/authenticate');
 const moment = require('moment-timezone');  // Import moment-timezone for timezone conversion
@@ -44,13 +44,22 @@ router.options('/self', (req, res) => {
 });
 
 // POST /v1/users - Create a new user
+// POST /v1/users - Create a new user
 router.post('/', checkDatabaseConnection, async (req, res) => {
   const { first_name, last_name, password, email } = req.body;
+
+  // Regular expression to validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  // Check if all required fields are present and if email is in the correct format
+  if (!email || !password || !first_name || !last_name || !emailRegex.test(email)) {
+    return res.status(400).end();  // Return 400 Bad Request without a message
+  }
 
   try {
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
+      return res.status(400).end();  // Return 400 Bad Request if user already exists
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -66,30 +75,30 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
     const { password: _, ...userResponse } = newUser.toJSON();
     const estUserResponse = convertToEST(userResponse);  // Convert timestamps to EST
 
-    res.status(201).json(estUserResponse);
+    res.status(201).json(estUserResponse);  // Return 201 Created with user data
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).end();  // Return 500 Server Error without a message
   }
 });
+
 
 // GET /v1/users/self - Retrieve the authenticated user's information
 router.get('/self', authenticate, checkDatabaseConnection, async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).end();  // Return 404 Not Found without a message
     }
 
     const { password: _, ...userResponse } = user.toJSON();
     const estUserResponse = convertToEST(userResponse);  // Convert timestamps to EST
 
-    res.status(200).json(estUserResponse);
+    res.status(200).json(estUserResponse);  // Return the user's information
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).end();  // Return 500 Server Error without a message
   }
 });
 
-// PUT /v1/users/self - Update the authenticated user's information
 // PUT /v1/users/self - Update the authenticated user's information
 router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
   const { first_name, last_name, password } = req.body;
@@ -97,7 +106,7 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).end();  // Return 404 Not Found without a message
     }
 
     // Prevent updates to email, account_created, account_updated
@@ -105,7 +114,7 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
     const attemptedUpdates = Object.keys(req.body).filter(field => restrictedFields.includes(field));
 
     if (attemptedUpdates.length > 0) {
-      return res.status(400).json({ message: `You cannot update the following fields: ${attemptedUpdates.join(', ')}` });
+      return res.status(400).end();  // Return 400 Bad Request without a message
     }
 
     // Update first name and last name if provided
@@ -124,9 +133,8 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
 
     res.status(204).end();  // Return 204 No Content for a successful update
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).end();  // Return 500 Server Error without a message
   }
 });
-
 
 module.exports = router;

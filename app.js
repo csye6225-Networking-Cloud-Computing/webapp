@@ -1,3 +1,5 @@
+// app.js
+
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
@@ -33,13 +35,16 @@ checkDatabaseConnection();
 setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
 
 // Add Sequelize sync (bootstrapping logic) to ensure schema is updated
-sequelize.sync({ alter: true }) // Use { force: true } if you want to drop tables and recreate
-    .then(() => {
+if (process.env.NODE_ENV !== 'test') {
+    sequelize.sync({ alter: true })
+      .then(() => {
         console.log('Database synchronized successfully');
-    })
-    .catch(err => {
+      })
+      .catch(err => {
         console.error('Error synchronizing database:', err);
-    });
+      });
+  }
+  
 
 // Middleware to handle database down (503 Service Unavailable) response
 const checkDBStatusMiddleware = (req, res, next) => {
@@ -78,7 +83,12 @@ app.use(cors());
 app.use('/healthz', checkDBStatusMiddleware, healthRoutes);
 app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
+// Export the app for testing purposes
+module.exports = app;
+
+// Start the server only if not testing
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
+    });
+}
