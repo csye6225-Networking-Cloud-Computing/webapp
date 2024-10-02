@@ -78,7 +78,17 @@ app.use(cors());
 app.use('/healthz', checkDBStatusMiddleware, healthRoutes);
 app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+// Add a 404 handler for undefined routes
+app.use((req, res) => {
+    return res.status(404).end();  // Send 404 status with no body
 });
+
+// Export the app for testing purposes
+module.exports = app;
+
+// Start the server only if not testing
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
+    });
+}
