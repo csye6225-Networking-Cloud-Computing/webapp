@@ -27,6 +27,10 @@ const checkDatabaseConnection = async (req, res, next) => {
   }
 };
 
+// Regular expressions for validation
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;  // Basic email format validation
+const nameRegex = /^[a-zA-Z0-9]+$/;  // Alphanumeric validation for first name and last name
+
 // Handle unsupported methods (DELETE, PATCH, OPTIONS, HEAD) for /v1/users/self
 const unsupportedMethods = ['DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
 
@@ -47,10 +51,18 @@ router.options('/self', (req, res) => {
 router.post('/', checkDatabaseConnection, async (req, res) => {
   const { first_name, last_name, password, email } = req.body;
 
+  // Validate the email format and that first/last names are alphanumeric
+  if (!emailRegex.test(email)) {
+    return res.status(400).end();  // Return 400 Bad Request without a message
+  }
+  if (!nameRegex.test(first_name) || !nameRegex.test(last_name)) {
+    return res.status(400).end();  // Return 400 Bad Request without a message
+  }
+
   try {
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
+      return res.status(400).end();  // Return 400 Bad Request if user already exists without a message
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -68,9 +80,10 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
 
     res.status(201).json(estUserResponse);
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).end();  // Return 500 Server Error without a message
   }
 });
+
 
 // GET /v1/users/self - Retrieve the authenticated user's information
 router.get('/self', authenticate, checkDatabaseConnection, async (req, res) => {
@@ -90,9 +103,13 @@ router.get('/self', authenticate, checkDatabaseConnection, async (req, res) => {
 });
 
 // PUT /v1/users/self - Update the authenticated user's information
-// PUT /v1/users/self - Update the authenticated user's information
 router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
   const { first_name, last_name, password } = req.body;
+
+  // Validate that first/last names are alphanumeric
+  if ((first_name && !nameRegex.test(first_name)) || (last_name && !nameRegex.test(last_name))) {
+    return res.status(400).json({ message: 'First and last name must be alphanumeric' });
+  }
 
   try {
     const user = await User.findByPk(req.user.id);
@@ -127,6 +144,5 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 
 module.exports = router;
