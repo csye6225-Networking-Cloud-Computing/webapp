@@ -14,9 +14,9 @@ const sequelize = new Sequelize(
         dialect: 'mysql',
         logging: false, // Disable SQL query logging
         pool: {
-            max: 10,  // Max connections in pool
-            min: 0,   // Min connections in pool
-            idle: 10000 // Idle time before releasing connection (in ms)
+            max: 10,  
+            min: 0,   
+            idle: 10000 
         }
     }
 );

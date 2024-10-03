@@ -30,7 +30,9 @@ const checkDatabaseConnection = async () => {
 
 // Check database connection on startup and at intervals
 checkDatabaseConnection();
+if (process.env.NODE_ENV !== 'test') {
 setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
+}
 
 // Add Sequelize sync (bootstrapping logic) to ensure schema is updated
 sequelize.sync({ force: true })
