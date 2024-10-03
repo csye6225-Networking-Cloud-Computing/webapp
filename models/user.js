@@ -29,9 +29,9 @@ const User = sequelize.define('User', {
   }
 }, {
   timestamps: true, // Enable Sequelize's automatic timestamps
-  createdAt: 'account_created', // Rename createdAt to account_created
-  updatedAt: 'account_updated', // Rename updatedAt to account_updated
-  tableName: 'user', // Ensure table name is 'user', not pluralized
+  createdAt: 'account_created', 
+  updatedAt: 'account_updated',
+  tableName: 'user', 
 });
 
 module.exports = User;
