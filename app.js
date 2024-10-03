@@ -33,12 +33,12 @@ checkDatabaseConnection();
 setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
 
 // Add Sequelize sync (bootstrapping logic) to ensure schema is updated
-sequelize.sync({ alter: true }) // Use { force: true } if you want to drop tables and recreate
+sequelize.sync({ force: true })
     .then(() => {
         console.log('Database synchronized successfully');
     })
     .catch(err => {
-        console.error('Error synchronizing database:', err);
+        console.error('Detailed Error:', JSON.stringify(err, null, 2));
     });
 
 // Middleware to handle database down (503 Service Unavailable) response
@@ -49,8 +49,15 @@ const checkDBStatusMiddleware = (req, res, next) => {
     next();
 };
 
-// Middleware to parse JSON bodies
+// Middleware to handle JSON parsing errors gracefully
 app.use(express.json());
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        console.error('Bad JSON Request:', err.message);
+        return res.status(400).end();
+    }
+    next();
+});
 
 // Handle unsupported methods (OPTIONS, HEAD) explicitly before CORS
 const unsupportedMethods = ['OPTIONS', 'HEAD'];

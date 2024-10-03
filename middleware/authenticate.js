@@ -6,7 +6,7 @@ const authenticate = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
 
   if (!authHeader || !authHeader.startsWith('Basic ')) {
-    return res.status(401).json({ message: 'Missing or invalid authentication header' });
+    return res.status(401).end();  // No message, just 401 Unauthorized
   }
 
   try {
@@ -17,21 +17,21 @@ const authenticate = async (req, res, next) => {
 
     // Ensure both email and password are extracted
     if (!email || !password) {
-      return res.status(401).json({ message: 'Invalid authentication credentials' });
+      return res.status(401).end();  // No message, just 401 Unauthorized
     }
 
     // Fetch the user by email
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).end();  // No message, just 401 Unauthorized
     }
 
     // Compare the password with the hashed password in the database
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).end();  // No message, just 401 Unauthorized
     }
 
     // Set the user in the request object so that it can be accessed later
@@ -39,7 +39,7 @@ const authenticate = async (req, res, next) => {
     next();  // Pass control to the next middleware or route handler
   } catch (err) {
     console.error('Error in authentication:', err);  // Log the error
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).end();  // No message, just 500 Internal Server Error
   }
 };
 
