@@ -12,36 +12,66 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ""  # No password for root
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
     strategy:
       matrix:
-        node-version: [14.x, 16.x, 18.x]  # Specify the Node.js versions you want to test with
+        node-version: [18.x, 20.x, 22.x]  # Specify Node.js versions to test
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Set up Node.js ${{ matrix.node-version }}
+    - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node-version }}
+        cache: npm
 
     - name: Install dependencies
-      run: npm install
+      run: npm ci
 
-    - name: Set up MySQL
-      uses: mirromutth/mysql-action@v1
-      with:
-        mysql-version: '8.0'    # MySQL version
-        mysql-db: 'health_check'  # Your database name
-        mysql-user: 'root'      # MySQL username (root)
-        mysql-password: ''      # MySQL password (empty string)
+    - name: Wait for MySQL to be ready
+      run: |
+        until mysqladmin ping --host=127.0.0.1 --port=3306 --silent; do
+          echo "Waiting for MySQL to be ready..."
+          sleep 5
+        done
+
+    - name: Set up test database
+      run: node config/setup-test-db.js  # Ensure this script syncs your Sequelize models
+      env:
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_USER: root
+        DB_PASSWORD: ""
+        DB_NAME: health_check
 
     - name: Run database migrations (if needed)
-      run: |
-        npx sequelize-cli db:migrate  # Run your Sequelize migrations if any
+      run: npx sequelize-cli db:migrate  # Run your Sequelize migrations
+      env:
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_USER: root
+        DB_PASSWORD: ""
+        DB_NAME: health_check
 
-    - name: Run Jest tests
+    - name: Run Jest tests (Unit & Integration)
       run: npm test
+      env:
+        APP_PORT: 8080
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_USER: root
+        DB_PASSWORD: ""
+        DB_NAME: health_check
 
     - name: Upload test results
       if: always()
