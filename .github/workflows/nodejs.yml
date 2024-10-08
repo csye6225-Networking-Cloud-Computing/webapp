@@ -2,57 +2,40 @@ name: Node.js CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [14.x, 16.x, 18.x]  # Specify the Node.js versions you want to test with
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: health_check
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Set up Node.js ${{ matrix.node-version }}
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: ${{ matrix.node-version }}
-
+        node-version: '20'
+    
     - name: Install dependencies
-      run: npm install
-
-    - name: Set up MySQL
-      uses: mirromutth/mysql-action@v1
-      with:
-        mysql-version: '8.0'    # MySQL version
-        mysql-db: 'health_check'  # Your database name
-        mysql-user: 'root'      # MySQL username (root)
-        mysql-password: ''      # MySQL password (empty string)
-
-    - name: Run database migrations (if needed)
-      run: |
-        npx sequelize-cli db:migrate  # Run your Sequelize migrations if any
-
+      run: npm ci
+    
     - name: Run Jest tests
       run: npm test
-
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: jest-results
-        path: jest-output.xml
-
-    - name: Upload coverage report
-      if: success()
-      uses: actions/upload-artifact@v3
-      with:
-        name: coverage-report
-        path: coverage/
+      env:
+        DB_HOST: 127.0.0.1
+        DB_USER: root
+        DB_PASSWORD: ''
+        DB_NAME: health_check
+        DB_PORT: 3306
