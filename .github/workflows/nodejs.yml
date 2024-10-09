@@ -39,6 +39,7 @@ jobs:
         echo "DB_PORT: ${{ secrets.DB_PORT }}"
         echo "DB_PASSWORD is set: ${{ secrets.DB_PASSWORD != '' }}"
 
+
     - name: Print environment variables for debugging
       run: |
         echo "DB_HOST: $DB_HOST"
