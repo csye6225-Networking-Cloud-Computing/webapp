@@ -1,41 +1,43 @@
-name: Node.js CI
+name: CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
-  test:
+  build-and-test:
     runs-on: ubuntu-latest
 
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: yes
-          MYSQL_DATABASE: health_check
-        ports:
-          - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
-
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Use Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run Jest tests
-      run: npm test
-      env:
-        DB_HOST: 127.0.0.1
-        DB_USER: root
-        DB_PASSWORD: ''
-        DB_NAME: health_check
-        DB_PORT: 3306
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Set up MySQL
+        run: sudo apt-get install mysql-server
+
+      - name: Start MySQL
+        run: sudo service mysql start
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run integration tests
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}  # Placeholder value will be passed here
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+        run: npm run test:integration
