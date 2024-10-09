@@ -4,8 +4,12 @@ const { sequelize } = require('../config/database');  // Import the Sequelize in
 
 // Clean up the database before and after each test
 beforeAll(async () => {
-  // Sync the database schema
-  await sequelize.sync({ force: true });  // Force true to drop and recreate tables
+  try {
+    await sequelize.sync({ force: true });
+    console.log('Database synced for tests');
+  } catch (error) {
+    console.error('Error syncing database for tests:', error);
+  }
 });
 
 afterAll(async () => {
