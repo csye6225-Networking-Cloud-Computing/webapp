@@ -26,7 +26,7 @@ jobs:
 
       - name: Print environment variables for debugging
         run: |
-          echo "DB_HOST: ${{ secrets.DB_HOST }}"
+          echo "DB_HOST: ${{ env.DB_HOST }}"
           echo "DB_USER: ${{ secrets.DB_USER }}"
           echo "DB_NAME: ${{ secrets.DB_NAME }}"
           echo "DB_PORT: ${{ secrets.DB_PORT }}"
