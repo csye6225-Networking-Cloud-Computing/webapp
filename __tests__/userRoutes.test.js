@@ -2,10 +2,14 @@ const request = require('supertest');
 const app = require('../app');  // Import your Express app
 const { sequelize } = require('../config/database');  // Import the Sequelize instance
 
-// Clean up the database before and after each test
 beforeAll(async () => {
   // Sync the database schema
-  await sequelize.sync({ force: true });  // Force true to drop and recreate tables
+  try {
+    await sequelize.sync({ force: true });
+    console.log('Database synced successfully');
+  } catch (error) {
+    console.error('Error syncing database:', error);
+  }
 });
 
 afterAll(async () => {

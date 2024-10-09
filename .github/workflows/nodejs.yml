@@ -15,7 +15,7 @@ jobs:
         image: mysql:8.0
         env:
           MYSQL_ALLOW_EMPTY_PASSWORD: yes
-          MYSQL_DATABASE: health_check
+          MYSQL_DATABASE: ${{ secrets.DB_NAME }}
         ports:
           - 3306:3306
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
@@ -31,11 +31,29 @@ jobs:
     - name: Install dependencies
       run: npm ci
     
+    - name: Debug Environment Variables
+      run: |
+        echo "DB_HOST: 127.0.0.1"
+        echo "DB_USER: root"
+        echo "DB_NAME: ${{ secrets.DB_NAME }}"
+        echo "DB_PORT: 3306"
+        echo "DB_PASSWORD is empty: ${{ secrets.DB_PASSWORD == 'EMPTY_PASSWORD' }}"
+
+    - name: Test MySQL connection and database
+      run: |
+        sudo apt-get install -y mysql-client
+        mysql -h127.0.0.1 -uroot -e "SHOW DATABASES;"
+        mysql -h127.0.0.1 -uroot -e "USE ${{ secrets.DB_NAME }}; SHOW TABLES;"
+
     - name: Run Jest tests
       run: npm test
       env:
         DB_HOST: 127.0.0.1
         DB_USER: root
-        DB_PASSWORD: ''
-        DB_NAME: health_check
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_NAME: ${{ secrets.DB_NAME }}
         DB_PORT: 3306
+
+    - name: Check MySQL logs
+      if: failure()
+      run: docker logs ${{ job.services.mysql.id }}
