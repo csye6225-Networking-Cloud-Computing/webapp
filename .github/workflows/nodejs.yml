@@ -20,7 +20,11 @@ jobs:
           MYSQL_DATABASE: ${{ secrets.DB_NAME }}
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=20s
+          --health-timeout=10s
+          --health-retries=5
 
     steps:
       - name: Checkout repository
@@ -32,7 +36,15 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Check MySQL logs
+        run: docker logs ${{ job.services.mysql.id }}
+
+      - name: Test MySQL connection
+        run: |
+          sudo apt-get install -y mysql-client
+          mysql -h127.0.0.1 -uroot -p${{ secrets.DB_PASSWORD }} -e "SHOW DATABASES;"
 
       - name: Run tests
         env:
@@ -41,8 +53,15 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_PORT: 3306
-        run: npm test
+        run: |
+          echo "Database connection details:"
+          echo "DB_HOST: $DB_HOST"
+          echo "DB_USER: $DB_USER"
+          echo "DB_NAME: $DB_NAME"
+          echo "DB_PORT: $DB_PORT"
+          echo "DB_PASSWORD is set: ${{ secrets.DB_PASSWORD != '' }}"
+          npm test
 
-      - name: Check MySQL logs
+      - name: Check MySQL logs after tests
         if: failure()
         run: docker logs ${{ job.services.mysql.id }}
