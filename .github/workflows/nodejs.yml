@@ -12,6 +12,20 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.DB_NAME }}
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=20s
+          --health-timeout=10s
+          --health-retries=5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -26,9 +40,23 @@ jobs:
 
       - name: Print environment variables for debugging
         run: |
-          echo "DB_HOST: ${{ secrets.DB_HOST }}"
-          echo "DB_USER: ${{ secrets.DB_USER }}"
-          echo "DB_NAME: ${{ secrets.DB_NAME }}"
-          echo "DB_PORT: ${{ secrets.DB_PORT }}"
+          echo "DB_HOST: $DB_HOST"
+          echo "DB_USER: $DB_USER"
+          echo "DB_NAME: $DB_NAME"
+          echo "DB_PORT: $DB_PORT"
           echo "DB_PASSWORD is set: ${{ secrets.DB_PASSWORD != '' }}"
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
 
+      - name: Run tests
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+        run: npm test
