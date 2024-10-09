@@ -5,7 +5,8 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 // Handle the case where DB_PASSWORD is "empty" (set in GitHub Secrets)
-const dbPassword = process.env.DB_PASSWORD === 'empty' ? '' : process.env.DB_PASSWORD;
+const dbPassword = process.env.DB_PASSWORD === 'EMPTY' ? '' : process.env.DB_PASSWORD;
+
 
 // Initialize Sequelize instance with MySQL connection
 const sequelize = new Sequelize(
