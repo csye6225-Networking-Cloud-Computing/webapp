@@ -31,28 +31,27 @@ jobs:
     - name: Install dependencies
       run: npm ci
     
-    - name: Debug environment
+    - name: Debug Environment Variables
       run: |
-        echo "DB_HOST is set: ${{ secrets.DB_HOST != '' }}"
-        echo "DB_USER is set: ${{ secrets.DB_USER != '' }}"
-        echo "DB_NAME is set: ${{ secrets.DB_NAME != '' }}"
-        echo "DB_PORT is set: ${{ secrets.DB_PORT != '' }}"
+        echo "DB_HOST: ${{ secrets.DB_HOST }}"
+        echo "DB_USER: ${{ secrets.DB_USER }}"
+        echo "DB_NAME: ${{ secrets.DB_NAME }}"
+        echo "DB_PORT: ${{ secrets.DB_PORT }}"
         echo "DB_PASSWORD is set: ${{ secrets.DB_PASSWORD != '' }}"
 
-    - name: Wait for MySQL
+    - name: Test MySQL connection
       run: |
-        while ! mysqladmin ping -h"127.0.0.1" -P"3306" --silent; do
-          sleep 1
-        done
+        sudo apt-get install -y mysql-client
+        mysql -h127.0.0.1 -uroot -e "SHOW DATABASES;"
 
     - name: Run Jest tests
       run: npm test
       env:
-        DB_HOST: ${{ secrets.DB_HOST }}
-        DB_USER: ${{ secrets.DB_USER }}
+        DB_HOST: 127.0.0.1
+        DB_USER: root
         DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         DB_NAME: ${{ secrets.DB_NAME }}
-        DB_PORT: ${{ secrets.DB_PORT }}
+        DB_PORT: 3306
 
     - name: Check MySQL logs
       if: failure()
