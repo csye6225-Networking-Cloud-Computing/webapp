@@ -1,67 +1,41 @@
-name: CI Pipeline
+name: Node.js CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  build-and-test:
+  test:
     runs-on: ubuntu-latest
 
     services:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          MYSQL_DATABASE: ${{ secrets.DB_NAME }}
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
         ports:
           - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h localhost"
-          --health-interval=20s
-          --health-timeout=10s
-          --health-retries=5
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check MySQL logs
-        run: docker logs ${{ job.services.mysql.id }}
-
-      - name: Test MySQL connection
-        run: |
-          sudo apt-get install -y mysql-client
-          mysql -h127.0.0.1 -uroot -p${{ secrets.DB_PASSWORD }} -e "SHOW DATABASES;"
-
-      - name: Run tests
-        env:
-          DB_HOST: 127.0.0.1
-          DB_USER: root
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_PORT: 3306
-        run: |
-          echo "Database connection details:"
-          echo "DB_HOST: $DB_HOST"
-          echo "DB_USER: $DB_USER"
-          echo "DB_NAME: $DB_NAME"
-          echo "DB_PORT: $DB_PORT"
-          echo "DB_PASSWORD is set: ${{ secrets.DB_PASSWORD != '' }}"
-          npm test
-
-      - name: Check MySQL logs after tests
-        if: failure()
-        run: docker logs ${{ job.services.mysql.id }}
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run Jest tests
+      run: npm test
+      env:
+        DB_HOST: ${{ vars.DB_HOST }}
+        DB_USER: ${{ vars.DB_USER }}
+        DB_PASSWORD: ''
+        DB_NAME: ${{ vars.DB_NAME }}
+        DB_PORT: ${{ vars.DB_PORT }}
