@@ -39,7 +39,10 @@ jobs:
         run: npm ci
 
       - name: Wait for MySQL to be ready
-        run: sleep 60  # Wait 60 seconds for MySQL to initialize
+        run: sleep 60
+
+      - name: List all running containers (for debugging)
+        run: docker ps -a
 
       - name: Run tests
         env:
@@ -52,4 +55,8 @@ jobs:
 
       - name: Check MySQL logs (if failed)
         if: failure()
-        run: docker logs mysql  # Reference the mysql service container directly
+        run: docker logs ${{ job.services.mysql.id }}
+
+      - name: Check MySQL logs after tests (if failed)
+        if: failure()
+        run: docker logs ${{ job.services.mysql.id }}
