@@ -22,9 +22,9 @@ jobs:
           - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h localhost"
-          --health-interval=30s  # Increased interval for better readiness
+          --health-interval=30s
           --health-timeout=20s
-          --health-retries=10    # Increased retries to give MySQL more time
+          --health-retries=10
 
     steps:
       - name: Checkout repository
@@ -39,7 +39,7 @@ jobs:
         run: npm ci
 
       - name: Wait for MySQL to be ready
-        run: sleep 60  # Wait 60 seconds to ensure MySQL has fully started
+        run: sleep 60  # Wait 60 seconds for MySQL to initialize
 
       - name: Run tests
         env:
@@ -48,13 +48,8 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_PORT: ${{ secrets.DB_PORT }}
-        run: |
-          echo "Checking MySQL service logs before running tests..."
-          docker logs ${{ job.services.mysql.id }}
+        run: npm test
 
-          echo "Running tests..."
-          npm test
-
-      - name: Check MySQL logs after tests (if failed)
+      - name: Check MySQL logs (if failed)
         if: failure()
-        run: docker logs ${{ job.services.mysql.id }}
+        run: docker logs mysql  # Reference the mysql service container directly
