@@ -16,15 +16,15 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'  # Allow MySQL to start without a password
-          MYSQL_DATABASE: ${{ secrets.DB_NAME }}  # Use the database name from GitHub secrets
+          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.DB_NAME }}
         ports:
           - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h localhost"
-          --health-interval=30s
-          --health-timeout=20s
-          --health-retries=10
+          --health-interval=20s
+          --health-timeout=10s
+          --health-retries=5
 
     steps:
       - name: Checkout repository
@@ -38,21 +38,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Wait for MySQL to be ready
-        run: sleep 60  # Give MySQL time to initialize
-
-      - name: List all running containers (for debugging)
-        run: docker ps -a
+      - name: Print environment variables for debugging
+        run: |
+          echo "DB_HOST: $DB_HOST"
+          echo "DB_USER: $DB_USER"
+          echo "DB_NAME: $DB_NAME"
+          echo "DB_PORT: $DB_PORT"
+          echo "DB_PASSWORD is set: ${{ secrets.DB_PASSWORD != '' }}"
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
 
       - name: Run tests
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ''  # Empty password since we're allowing no password
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_PORT: ${{ secrets.DB_PORT }}
         run: npm test
-
-      - name: Check MySQL logs (if failed)
-        if: failure()
-        run: docker logs ${{ job.services.mysql.id }}
