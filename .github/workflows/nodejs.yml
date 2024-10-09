@@ -26,9 +26,16 @@ jobs:
 
       - name: Print environment variables for debugging
         run: |
-          echo "DB_HOST: ${{ secrets.DB_HOST }}"
-          echo "DB_USER: ${{ secrets.DB_USER }}"
-          echo "DB_NAME: ${{ secrets.DB_NAME }}"
-          echo "DB_PORT: ${{ secrets.DB_PORT }}"
+          echo "DB_HOST: $DB_HOST"
+          echo "DB_USER: $DB_USER"
+          echo "DB_NAME: $DB_NAME"
+          echo "DB_PORT: $DB_PORT"
           echo "DB_PASSWORD is set: ${{ secrets.DB_PASSWORD != '' }}"
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+
 
