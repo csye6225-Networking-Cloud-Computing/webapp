@@ -21,23 +21,17 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Set up MySQL
+      - name: Install MySQL
         run: sudo apt-get install mysql-server
 
       - name: Start MySQL
         run: sudo service mysql start
 
-      - name: Run unit tests
-        run: npm test
-
-      - name: Run integration tests
+      - name: Run tests
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}  # Placeholder value will be passed here
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}  # Ensure this is set correctly
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_PORT: ${{ secrets.DB_PORT }}
-        run: npm run test:integration
+        run: npm test
