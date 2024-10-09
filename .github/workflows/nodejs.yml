@@ -1,21 +1,67 @@
-name: Test Secrets
+name: CI Pipeline
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
     branches:
       - main
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.DB_NAME }}
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=20s
+          --health-timeout=10s
+          --health-retries=5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      
-      - name: Print environment variables for debugging
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check MySQL logs
+        run: docker logs ${{ job.services.mysql.id }}
+
+      - name: Test MySQL connection
         run: |
-          echo "DB_HOST is set: ${{ secrets.DB_HOST != '' }}"
-          echo "DB_USER is set: ${{ secrets.DB_USER != '' }}"
-          echo "DB_NAME is set: ${{ secrets.DB_NAME != '' }}"
-          echo "DB_PORT is set: ${{ secrets.DB_PORT != '' }}"
+          sudo apt-get install -y mysql-client
+          mysql -h127.0.0.1 -uroot -p${{ secrets.DB_PASSWORD }} -e "SHOW DATABASES;"
+
+      - name: Run tests
+        env:
+          DB_HOST: 127.0.0.1
+          DB_USER: root
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: 3306
+        run: |
+          echo "Database connection details:"
+          echo "DB_HOST: $DB_HOST"
+          echo "DB_USER: $DB_USER"
+          echo "DB_NAME: $DB_NAME"
+          echo "DB_PORT: $DB_PORT"
           echo "DB_PASSWORD is set: ${{ secrets.DB_PASSWORD != '' }}"
+          npm test
+
+      - name: Check MySQL logs after tests
+        if: failure()
+        run: docker logs ${{ job.services.mysql.id }}
