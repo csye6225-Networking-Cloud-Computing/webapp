@@ -6,13 +6,13 @@ on:
       - main
 
 jobs:
-  test-secrets:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      
-      - name: Test secrets fetching
+
+      - name: Print environment variables for debugging
         run: |
           echo "DB_HOST is set: ${{ secrets.DB_HOST != '' }}"
           echo "DB_USER is set: ${{ secrets.DB_USER != '' }}"
