@@ -4,8 +4,8 @@ const dotenv = require('dotenv');
 // Load environment variables from .env file
 dotenv.config();
 
-// Handle the case where DB_PASSWORD is "empty" (set in GitHub Secrets)
-const dbPassword = process.env.DB_PASSWORD === 'empty' ? '' : process.env.DB_PASSWORD;
+// Check for "EMPTY" and replace with an actual empty string for DB_PASSWORD
+const dbPassword = process.env.DB_PASSWORD === 'EMPTY' ? '' : process.env.DB_PASSWORD;
 
 // Initialize Sequelize instance with MySQL connection
 const sequelize = new Sequelize(
@@ -17,20 +17,12 @@ const sequelize = new Sequelize(
         dialect: 'mysql',
         logging: false, // Disable SQL query logging
         pool: {
-            max: 10,  
-            min: 0,   
-            idle: 10000 
+            max: 10,
+            min: 0,
+            idle: 10000
         }
     }
 );
 
-// Test the connection
-sequelize.authenticate()
-    .then(() => {
-        console.log('Connection to the database has been established successfully.');
-    })
-    .catch(err => {
-        console.error('Unable to connect to the database:', err);
-    });
-
+// Export the Sequelize instance
 module.exports = { sequelize };
