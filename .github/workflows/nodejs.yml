@@ -19,9 +19,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '20'  # Specify Node.js version (e.g., 16 or another version)
 
-      - name: Install MySQL
+      - name: Install dependencies
+        run: npm install  # This ensures Jest and other dependencies are installed
+
+      - name: Set up MySQL
         run: sudo apt-get install mysql-server
 
       - name: Start MySQL
@@ -31,7 +34,7 @@ jobs:
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}  # Ensure this is set correctly
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_PORT: ${{ secrets.DB_PORT }}
-        run: npm test
+        run: npm test  # This will run the tests using Jest
