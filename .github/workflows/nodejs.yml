@@ -12,7 +12,7 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: no
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
           MYSQL_DATABASE: ${{ secrets.DB_NAME }}
         ports:
           - 3306:3306
@@ -38,7 +38,7 @@ jobs:
         echo "DB_PORT: ${{ secrets.DB_PORT }}"
     
     - name: Run Jest tests
-      run: npm test
+      run: npm tes
       env:
         DB_HOST: ${{ secrets.DB_HOST }}
         DB_USER: ${{ secrets.DB_USER }}
