@@ -27,7 +27,7 @@ jobs:
         node-version: '20'
     
     - name: Install dependencies
-      run: npm ci
+      run: npm 
     
     - name: Print environment variables for debugging
       run: |
