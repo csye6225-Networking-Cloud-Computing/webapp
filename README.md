@@ -1,7 +1,7 @@
 # webapp modified
 ## Prerequisites
 
-Before you begin, ensure you have met the following requirements:
+Before you begin, ensure you have met the following requirements
 
 - **Node.js**: You need to have Node.js installed on your machine. You can download it from [Node.js Official Website](https://nodejs.org/).
 - **NPM**: Node Package Manager (NPM) comes with Node.js installation. You can check the version by running `npm -v`.
