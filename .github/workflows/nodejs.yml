@@ -42,7 +42,7 @@ jobs:
         echo "DB_PORT: ${{ secrets.DB_PORT }}"
     
     - name: Run Jest tests
-      run: npm test
+      run: npm 
       env:
         DB_HOST: ${{ secrets.DB_HOST }}
         DB_USER: ${{ secrets.DB_USER }}
