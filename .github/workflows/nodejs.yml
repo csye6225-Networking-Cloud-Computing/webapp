@@ -37,7 +37,7 @@ jobs:
         echo "DB_NAME: ${{ secrets.DB_NAME }}"
         echo "DB_PORT: ${{ secrets.DB_PORT }}"
     
-    - name: Run Jest tests
+    - name: Run Jest 
       run: npm test
       env:
         DB_HOST: ${{ secrets.DB_HOST }}
