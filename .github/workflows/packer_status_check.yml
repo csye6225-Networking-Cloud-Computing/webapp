@@ -13,13 +13,14 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Set up Packer
-      uses: hashicorp/setup-packer@v2  # Updated to the latest version
+      uses: hashicorp/setup-packer@v2
       with:
-        version: '1.7.10'  # Specify the desired Packer version
+        version: '1.7.10'  # Packer version
 
     - name: Validate Packer template
-      run: packer validate your-packer-template.json
+      run: packer validate packer-template/ubuntu-mysql.pkr.hcl  # Update the correct file name
 
     - name: Format Packer template
-      run: packer fmt -check your-packer-template.json
+      run: packer fmt -check packer-template/ubuntu-mysql.pkr.hcl  # Update the correct file name
+
 
