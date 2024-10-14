@@ -1,0 +1,29 @@
+name: Packer Status Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  packer-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install Packer
+        uses: hashicorp/setup-packer@v1
+
+      - name: Format Packer template
+        run: |
+          packer fmt -check .
+
+      - name: Validate Packer template
+        run: |
+          packer validate .
+
+      - name: Fail on format changes
+        run: |
+          git diff --exit-code
