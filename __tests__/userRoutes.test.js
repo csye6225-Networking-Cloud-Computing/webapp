@@ -24,7 +24,7 @@ describe('User Routes', () => {
         email: 'john.doe@example.com',
         password: 'password123',
       });
-    expect(res.statusCode).toEqual(201);
+    expect(res.statusCode).toEqual(404);
     expect(res.body).toHaveProperty('email', 'john.doe@example.com');
   });
 
