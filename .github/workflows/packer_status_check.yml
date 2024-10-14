@@ -8,22 +8,18 @@ on:
 jobs:
   packer-check:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Install Packer
-        uses: hashicorp/setup-packer@v1
+    - name: Set up Packer
+      uses: hashicorp/setup-packer@v2  # Updated to the latest version
+      with:
+        version: '1.7.10'  # Specify the desired Packer version
 
-      - name: Format Packer template
-        run: |
-          packer fmt -check .
+    - name: Validate Packer template
+      run: packer validate your-packer-template.json
 
-      - name: Validate Packer template
-        run: |
-          packer validate .
+    - name: Format Packer template
+      run: packer fmt -check your-packer-template.json
 
-      - name: Fail on format changes
-        run: |
-          git diff --exit-code
