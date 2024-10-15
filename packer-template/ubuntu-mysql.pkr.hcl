@@ -17,6 +17,11 @@ variable "source_ami" {
   default = "ami-0866a3c8686eaeeba" # Ubuntu 24.04 LTS AMI ID for us-east-1
 }
 
+variable "instance_type" {
+  type    = string
+  default = "t2.small"
+}
+
 variable "ssh_username" {
   type    = string
   default = "ubuntu"
@@ -27,31 +32,33 @@ variable "subnet_id" {
   default = "subnet-063beaf3ff4e82a4d"
 }
 
-# Declare the environment variable inputs
-variable "DB_HOST" {
+variable "db_host" {
   type = string
 }
 
-variable "DB_USER" {
+variable "db_user" {
   type = string
 }
 
-variable "DB_PASSWORD" {
+variable "db_password" {
   type = string
 }
 
-variable "DB_NAME" {
+variable "db_name" {
   type = string
 }
 
-variable "DB_PORT" {
-  type    = string
-  default = "3306" # Default port for MySQL
+variable "db_port" {
+  type = string
+}
+
+variable "demo_account_id" {
+  type = string
 }
 
 source "amazon-ebs" "my-ubuntu-image" {
   region          = var.aws_region
-  instance_type   = "t2.small"
+  instance_type   = var.instance_type
   source_ami      = var.source_ami
   ssh_username    = var.ssh_username
   subnet_id       = var.subnet_id
@@ -67,12 +74,7 @@ source "amazon-ebs" "my-ubuntu-image" {
     BuildBy = "Packer"
   }
 
-  ami_regions = ["us-east-1"]
-
-  aws_polling {
-    delay_seconds = 120
-    max_attempts  = 50
-  }
+  ami_users = [var.demo_account_id]
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
@@ -85,57 +87,34 @@ source "amazon-ebs" "my-ubuntu-image" {
 build {
   sources = ["source.amazon-ebs.my-ubuntu-image"]
 
-  # Set environment variables from GitHub Secrets
-  provisioner "shell" {
-    inline = [
-      "echo 'DB_HOST=${var.DB_HOST}' | sudo tee -a /etc/environment",
-      "echo 'DB_USER=${var.DB_USER}' | sudo tee -a /etc/environment",
-      "echo 'DB_PASSWORD=${var.DB_PASSWORD}' | sudo tee -a /etc/environment",
-      "echo 'DB_NAME=${var.DB_NAME}' | sudo tee -a /etc/environment",
-      "echo 'DB_PORT=${var.DB_PORT}' | sudo tee -a /etc/environment",
-      "source /etc/environment" # Reload environment variables
-    ]
-  }
-
-  # Copy the webapp.zip to the /tmp directory
   provisioner "file" {
     source      = "${path.root}/webapp.zip"
     destination = "/tmp/webapp.zip"
   }
 
-  # Move the webapp.zip to /opt and set permissions
-  provisioner "shell" {
-    inline = [
-      "sudo mv /tmp/webapp.zip /opt/webapp.zip",
-      "sudo chmod 644 /opt/webapp.zip"
-    ]
-  }
-
-  # Copy the my-app.service file to /tmp
   provisioner "file" {
     source      = "${path.root}/my-app.service"
     destination = "/tmp/my-app.service"
   }
 
-  # Move the my-app.service to /opt with root privileges
-  provisioner "shell" {
-    inline = [
-      "sudo mv /tmp/my-app.service /opt/my-app.service",
-      "sudo chmod 644 /opt/my-app.service"
-    ]
-  }
-
-  # Copy the install_webapp.sh script to /tmp
   provisioner "file" {
     source      = "${path.root}/install_webapp.sh"
     destination = "/tmp/install_webapp.sh"
   }
 
-  # Run the install_webapp.sh script
   provisioner "shell" {
     inline = [
+      "sudo mv /tmp/webapp.zip /opt/webapp.zip",
+      "sudo chmod 644 /opt/webapp.zip",
+      "sudo mv /tmp/my-app.service /opt/my-app.service",
+      "sudo chmod 644 /opt/my-app.service",
       "chmod +x /tmp/install_webapp.sh",
-      "sudo /tmp/install_webapp.sh"
+      "sudo /tmp/install_webapp.sh",
+      "echo 'DB_HOST=${var.db_host}' | sudo tee -a /etc/environment",
+      "echo 'DB_USER=${var.db_user}' | sudo tee -a /etc/environment",
+      "echo 'DB_PASSWORD=${var.db_password}' | sudo tee -a /etc/environment",
+      "echo 'DB_NAME=${var.db_name}' | sudo tee -a /etc/environment",
+      "echo 'DB_PORT=${var.db_port}' | sudo tee -a /etc/environment",
     ]
   }
 }
