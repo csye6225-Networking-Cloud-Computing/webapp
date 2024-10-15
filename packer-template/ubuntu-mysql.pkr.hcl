@@ -63,6 +63,17 @@ source "amazon-ebs" "my-ubuntu-image" {
 build {
   sources = ["source.amazon-ebs.my-ubuntu-image"]
 
+  # Provisioner to set environment variables from GitHub Secrets
+  provisioner "shell" {
+    inline = [
+      "echo 'DB_HOST=${DB_HOST}' | sudo tee -a /etc/environment",
+      "echo 'DB_USER=${DB_USER}' | sudo tee -a /etc/environment",
+      "echo 'DB_PASSWORD=${DB_PASSWORD}' | sudo tee -a /etc/environment",
+      "echo 'DB_NAME=${DB_NAME}' | sudo tee -a /etc/environment",
+      "echo 'DB_PORT=${DB_PORT}' | sudo tee -a /etc/environment",
+    ]
+  }
+
   # Copy the webapp.zip to the /tmp directory
   provisioner "file" {
     source      = "${path.root}/webapp.zip"
