@@ -3,11 +3,12 @@ name: Packer Status Check
 on:
   pull_request:
     branches:
-      - main
+      - main  # Trigger the action on pull requests to the main branch
 
 jobs:
   packer-fmt:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -18,18 +19,20 @@ jobs:
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           sudo apt-get update && sudo apt-get install packer -y
 
-      - name: List directory structure
+      # Step to verify the directory contents to ensure the files are present
+      - name: Check directory contents
         run: ls -R
 
       - name: Run packer fmt
-        run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl  # Path to the file
+        run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl
 
       - name: Fail if packer fmt modifies the template
         run: |
-          git diff --exit-code || (echo "Packer fmt modified the packer template!" && exit 1)
+          git diff --exit-code || (echo "Packer fmt modified the template!" && exit 1)
 
   packer-validate:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -40,15 +43,15 @@ jobs:
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           sudo apt-get update && sudo apt-get install packer -y
 
-      - name: Initialize Packer
-        run: packer init ./packer-template/ubuntu-mysql.pkr.hcl  # Correct path
-
-      - name: List directory structure after checkout
+      - name: Check directory contents
         run: ls -R
 
-      - name: Run packer validate
-        run: packer validate ./packer-template/ubuntu-mysql.pkr.hcl  # Correct path
+      - name: Initialize Packer
+        run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
 
-      - name: Fail if packer validate fails
+      - name: Validate Packer template
+        run: packer validate ./packer-template/ubuntu-mysql.pkr.hcl
+
+      - name: Fail if Packer validation fails
         run: |
           packer validate ./packer-template/ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1)

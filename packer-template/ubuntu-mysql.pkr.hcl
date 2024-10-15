@@ -79,7 +79,7 @@ provisioner "shell" {
 
 # Copy the my-app.service file to /tmp and then move it to /opt with sudo
 provisioner "file" {
-  source      = ".packer-template/my-app.service"
+  source      = "./my-app.service"
   destination = "/tmp/my-app.service"
 }
 
@@ -93,7 +93,7 @@ provisioner "shell" {
 
 # Continue running the install_webapp.sh script
 provisioner "file" {
-  source      = ".packer-template/install_webapp.sh"
+  source      = "./install_webapp.sh"
   destination = "/tmp/install_webapp.sh"
 }
 
