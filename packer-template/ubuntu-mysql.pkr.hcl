@@ -65,7 +65,7 @@ build {
 
  # Copy the webapp.zip to the /tmp directory
 provisioner "file" {
-  source      = "webapp.zip"
+  source      = "../../webapp.zip"
   destination = "/tmp/webapp.zip"
 }
 
