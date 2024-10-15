@@ -21,15 +21,14 @@ jobs:
       - name: List directory contents (for debugging)
         run: ls -R
 
-      # Zip the webapp folder and move the webapp.zip to packer-template
-      - name: Zip webapp folder
+      # Zip the webapp folder located outside the repository root and save it directly into packer-template
+      - name: Zip webapp folder directly into packer-template
         run: |
-          zip -r webapp.zip ../webapp  # Zipping the folder from the parent directory
-          mv webapp.zip ./packer-template/webapp.zip
-        working-directory: ./packer-template
+          zip -r ./packer-template/webapp.zip ../webapp  # Create zip directly in the packer-template directory
 
       - name: List contents of packer-template (ensure zip is there)
-        run: ls -R ./packer-template
+        working-directory: ./packer-template
+        run: ls -la
 
       - name: Run packer fmt
         run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl
