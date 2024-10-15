@@ -24,9 +24,35 @@ jobs:
         with:
           version: "1.9.4"
 
+      - name: List directory contents
+        run: ls -la
+
+      - name: Copy necessary files
+        run: |
+          if [ -f "webapp.zip" ]; then
+            cp webapp.zip packer-template/
+          else
+            echo "webapp.zip not found"
+            exit 1
+          fi
+          
+          if [ -f "my-app.service" ]; then
+            cp my-app.service packer-template/
+          else
+            echo "my-app.service not found"
+            exit 1
+          fi
+          
+          if [ -f "install_webapp.sh" ]; then
+            cp install_webapp.sh packer-template/
+          else
+            echo "install_webapp.sh not found"
+            exit 1
+          fi
+
       - name: Create variables file
         run: |
-          cat << EOF > variables.pkrvars.hcl
+          cat << EOF > packer-template/variables.pkrvars.hcl
           aws_region = "us-east-1"
           source_ami = "$(aws ec2 describe-images --owners amazon --filters 'Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-24.04-amd64-server-*' 'Name=state,Values=available' --query 'sort_by(Images, &CreationDate)[-1].ImageId' --output text)"
           instance_type = "t2.micro"
@@ -44,18 +70,24 @@ jobs:
 
       - name: Build AMI
         run: |
-          packer build \
-            -var-file=variables.pkrvars.hcl \
-            ./packer-template/ubuntu-mysql.pkr.hcl
+          cd packer-template
+          packer build -var-file=variables.pkrvars.hcl ubuntu-mysql.pkr.hcl
 
       - name: Get AMI ID
         id: get-ami-id
         run: |
-          AMI_ID=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d ":" -f2)
-          echo "::set-output name=ami_id::$AMI_ID"
+          AMI_ID=$(jq -r '.builds[-1].artifact_id' packer-template/manifest.json | cut -d ":" -f2)
+          echo "ami_id=$AMI_ID" >> $GITHUB_OUTPUT
 
       - name: Share AMI with DEMO account
         run: |
           aws ec2 modify-image-attribute \
             --image-id ${{ steps.get-ami-id.outputs.ami_id }} \
             --launch-permission "Add=[{UserId=${{ secrets.DEMO_ACCOUNT_ID }}}]"
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -f packer-template/webapp.zip
+          rm -f packer-template/my-app.service
+          rm -f packer-template/install_webapp.sh
