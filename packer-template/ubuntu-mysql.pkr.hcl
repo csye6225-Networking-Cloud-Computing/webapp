@@ -93,6 +93,7 @@ build {
 
   # Copy the install_webapp.sh script to /tmp
   provisioner "file" {
+    
     source      = "${path.root}/install_webapp.sh"
     destination = "/tmp/install_webapp.sh"
   }
