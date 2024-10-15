@@ -18,7 +18,8 @@ console.log(`Connecting to database:
   DB_PORT: ${process.env.DB_PORT || '3306'}`);
 
 // Handle the case where DB_PASSWORD is "EMPTY" (set in GitHub Secrets) or undefined
-const dbPassword = process.env.DB_PASSWORD === 'EMPTY' || !process.env.DB_PASSWORD ? '' : process.env.DB_PASSWORD;
+const dbPassword = process.env.DB_PASSWORD === 'EMPTY' ? '' : process.env.DB_PASSWORD;
+
 
 // Initialize Sequelize instance with MySQL connection
 const sequelize = new Sequelize(
