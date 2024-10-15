@@ -27,6 +27,28 @@ variable "subnet_id" {
   default = "subnet-063beaf3ff4e82a4d"
 }
 
+# Declare the environment variable inputs
+variable "DB_HOST" {
+  type    = string
+}
+
+variable "DB_USER" {
+  type    = string
+}
+
+variable "DB_PASSWORD" {
+  type    = string
+}
+
+variable "DB_NAME" {
+  type    = string
+}
+
+variable "DB_PORT" {
+  type    = string
+  default = "3306"  # Default port for MySQL
+}
+
 source "amazon-ebs" "my-ubuntu-image" {
   region          = var.aws_region
   instance_type   = "t2.small"
@@ -62,6 +84,17 @@ source "amazon-ebs" "my-ubuntu-image" {
 
 build {
   sources = ["source.amazon-ebs.my-ubuntu-image"]
+
+  # Set environment variables from GitHub Secrets
+  provisioner "shell" {
+    inline = [
+      "echo 'DB_HOST=${var.DB_HOST}' | sudo tee -a /etc/environment",
+      "echo 'DB_USER=${var.DB_USER}' | sudo tee -a /etc/environment",
+      "echo 'DB_PASSWORD=${var.DB_PASSWORD}' | sudo tee -a /etc/environment",
+      "echo 'DB_NAME=${var.DB_NAME}' | sudo tee -a /etc/environment",
+      "echo 'DB_PORT=${var.DB_PORT}' | sudo tee -a /etc/environment",
+    ]
+  }
 
   # Copy the webapp.zip to the /tmp directory
   provisioner "file" {

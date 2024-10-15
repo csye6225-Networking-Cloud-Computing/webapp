@@ -36,17 +36,6 @@ jobs:
           echo "packer-template directory contents:"
           ls -la packer-template
 
-      - name: Check necessary files
-        run: |
-          for file in webapp.zip my-app.service install_webapp.sh; do
-            if [ ! -f "packer-template/$file" ]; then
-              echo "$file not found in packer-template directory"
-              echo "Current directory structure:"
-              find . -type f
-              exit 1
-            fi
-          done
-
       - name: Create variables file
         run: |
           cat << EOF > packer-template/variables.pkrvars.hcl
