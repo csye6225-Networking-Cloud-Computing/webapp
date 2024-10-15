@@ -6,44 +6,41 @@ on:
       - main
 
 jobs:
-  packer-fmt:
+  packer-check:
     runs-on: ubuntu-latest
     steps:
+      # Step 1: Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      # Step 2: Install Packer
       - name: Install Packer
         run: |
           curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           sudo apt-get update && sudo apt-get install packer -y
 
-      - name: Run packer fmt
-        run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl
+      # Step 3: Check the file structure (debugging)
+      - name: List directory contents
+        run: ls -R
 
+      # Step 4: Initialize Packer (This installs required plugins, like the Amazon plugin)
+      - name: Initialize Packer
+        working-directory: ./packer-template
+        run: packer init ubuntu-mysql.pkr.hcl  # Adjust the path if needed
+
+      # Step 5: Validate Packer template (Check if the Packer file is correctly structured)
+      - name: Validate Packer template
+        working-directory: ./packer-template
+        run: packer validate ubuntu-mysql.pkr.hcl  # Adjust the path if needed
+
+      # Step 6: Format Packer template (Check for formatting issues)
+      - name: Run packer fmt
+        working-directory: ./packer-template
+        run: packer fmt -check ubuntu-mysql.pkr.hcl  # Adjust the path if needed
+
+      # Step 7: Check if the fmt modified the template
       - name: Fail if packer fmt modifies the template
+        working-directory: ./packer-template
         run: |
           git diff --exit-code || (echo "Packer fmt modified the packer template!" && exit 1)
-
-  packer-validate:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Install Packer
-        run: |
-          curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-          sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-          sudo apt-get update && sudo apt-get install packer -y
-
-      # Initialize Packer before validation to install plugins
-      - name: Initialize Packer
-        run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
-
-      - name: Run packer validate
-        run: packer validate ./packer-template/ubuntu-mysql.pkr.hcl
-
-      - name: Fail if packer validate fails
-        run: |
-          packer validate ./packer-template/ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1)
