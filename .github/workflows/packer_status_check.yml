@@ -57,4 +57,4 @@ jobs:
 
       - name: Fail if packer validate fails
         run: |
-          packer validate ./packer-template/ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1)
+          packer validate ./packer-template/ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1) 
