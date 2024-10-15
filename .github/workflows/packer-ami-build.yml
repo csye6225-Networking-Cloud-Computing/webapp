@@ -47,45 +47,38 @@ jobs:
             fi
           done
 
-      # Debugging step to check the environment variables being passed
-      - name: Debug Secret Variables
-        run: |
-          echo "DB_HOST: ${{ secrets.DB_HOST }}"
-          echo "DB_USER: ${{ secrets.DB_USER }}"
-          echo "DB_PASSWORD: [REDACTED]"
-          echo "DB_NAME: ${{ secrets.DB_NAME }}"
-          echo "DB_PORT: ${{ secrets.DB_PORT }}"
-        continue-on-error: true  # Prevent job from failing for security reasons
-
-      # Fail step if the required environment variables are empty
-      - name: Ensure required secrets are set
-        run: |
-          if [[ -z "${{ secrets.DB_HOST }}" || -z "${{ secrets.DB_USER }}" || -z "${{ secrets.DB_PASSWORD }}" || -z "${{ secrets.DB_NAME }}" ]]; then
-            echo "One or more environment variables are not set!"
-            exit 1
-          fi
-
       - name: Create variables file
         run: |
           cat << EOF > packer-template/variables.pkrvars.hcl
           aws_region = "us-east-1"
-          instance_type = "t2.micro"
+          instance_type = "t2.small"
           ssh_username = "ubuntu"
+          source_ami = "ami-0866a3c8686eaeeba"
+          subnet_id = "subnet-063beaf3ff4e82a4d"
           ami_users = "${{ secrets.DEMO_ACCOUNT_ID }}"
-          db_host = "${{ secrets.DB_HOST }}"
-          db_user = "${{ secrets.DB_USER }}"
-          db_password = "${{ secrets.DB_PASSWORD }}"
-          db_name = "${{ secrets.DB_NAME }}"
-          db_port = "${{ secrets.DB_PORT }}"
           EOF
 
       - name: Initialize Packer
         run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
 
       - name: Build AMI
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DEMO_ACCOUNT_ID: ${{ secrets.DEMO_ACCOUNT_ID }}
         run: |
           cd packer-template
-          packer build -var-file=variables.pkrvars.hcl ubuntu-mysql.pkr.hcl
+          packer build -var-file=variables.pkrvars.hcl \
+            -var "db_host=$DB_HOST" \
+            -var "db_user=$DB_USER" \
+            -var "db_password=$DB_PASSWORD" \
+            -var "db_name=$DB_NAME" \
+            -var "db_port=$DB_PORT" \
+            -var "demo_account_id=$DEMO_ACCOUNT_ID" \
+            ubuntu-mysql.pkr.hcl
 
       - name: Get AMI ID
         id: get-ami-id
