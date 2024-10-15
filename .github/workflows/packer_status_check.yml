@@ -23,11 +23,15 @@ jobs:
 
       # Zip the webapp folder located outside the repository root
       - name: Zip webapp folder
+        working-directory: ..
         run: |
-         ls -la ../
-         zip -r webapp.zip ../webapp  # Referring to the parent directory to find webapp folder
-        working-directory: ./packer-template
+          ls -la
+          zip -r webapp.zip ./webapp  # Referring to the parent directory to find webapp folder
+          mv webapp.zip ./packer-template/webapp.zip  # Move the webapp.zip file to the packer-template directory
 
+      - name: List contents of packer-template (ensure zip is there)
+        working-directory: ./packer-template
+        run: ls -la
 
       - name: Run packer fmt
         run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl
