@@ -7,6 +7,7 @@ packer {
   }
 }
 
+# Variables for the build
 variable "aws_region" {
   type    = string
   default = "us-east-1"
@@ -27,6 +28,29 @@ variable "subnet_id" {
   default = "subnet-063beaf3ff4e82a4d"
 }
 
+# Variables for database secrets, expected to be passed from GitHub Secrets
+variable "DB_HOST" {
+  type    = string
+}
+
+variable "DB_USER" {
+  type    = string
+}
+
+variable "DB_PASSWORD" {
+  type    = string
+}
+
+variable "DB_NAME" {
+  type    = string
+}
+
+variable "DB_PORT" {
+  type    = string
+  default = "3306" # Default port for MySQL
+}
+
+# Amazon EBS source definition for AMI
 source "amazon-ebs" "my-ubuntu-image" {
   region          = var.aws_region
   instance_type   = "t2.small"
@@ -60,27 +84,28 @@ source "amazon-ebs" "my-ubuntu-image" {
   }
 }
 
+# Build block for AMI
 build {
   sources = ["source.amazon-ebs.my-ubuntu-image"]
 
-  # Provisioner to set environment variables from GitHub Secrets
+  # Inject environment variables from GitHub Secrets into the VM
   provisioner "shell" {
     inline = [
-      "echo 'DB_HOST=${DB_HOST}' | sudo tee -a /etc/environment",
-      "echo 'DB_USER=${DB_USER}' | sudo tee -a /etc/environment",
-      "echo 'DB_PASSWORD=${DB_PASSWORD}' | sudo tee -a /etc/environment",
-      "echo 'DB_NAME=${DB_NAME}' | sudo tee -a /etc/environment",
-      "echo 'DB_PORT=${DB_PORT}' | sudo tee -a /etc/environment",
+      "echo 'DB_HOST=${var.DB_HOST}' | sudo tee -a /etc/environment",
+      "echo 'DB_USER=${var.DB_USER}' | sudo tee -a /etc/environment",
+      "echo 'DB_PASSWORD=${var.DB_PASSWORD}' | sudo tee -a /etc/environment",
+      "echo 'DB_NAME=${var.DB_NAME}' | sudo tee -a /etc/environment",
+      "echo 'DB_PORT=${var.DB_PORT}' | sudo tee -a /etc/environment",
     ]
   }
 
-  # Copy the webapp.zip to the /tmp directory
+  # Copy webapp.zip to /tmp directory
   provisioner "file" {
     source      = "${path.root}/webapp.zip"
     destination = "/tmp/webapp.zip"
   }
 
-  # Move the webapp.zip to /opt and set permissions
+  # Move webapp.zip to /opt and set appropriate permissions
   provisioner "shell" {
     inline = [
       "sudo mv /tmp/webapp.zip /opt/webapp.zip",
@@ -88,13 +113,13 @@ build {
     ]
   }
 
-  # Copy the my-app.service file to /tmp
+  # Copy the systemd service file to /tmp
   provisioner "file" {
     source      = "${path.root}/my-app.service"
     destination = "/tmp/my-app.service"
   }
 
-  # Move the my-app.service to /opt with root privileges
+  # Move the systemd service file to /opt and set permissions
   provisioner "shell" {
     inline = [
       "sudo mv /tmp/my-app.service /opt/my-app.service",
@@ -102,13 +127,13 @@ build {
     ]
   }
 
-  # Copy the install_webapp.sh script to /tmp
+  # Copy the webapp installation script to /tmp
   provisioner "file" {
     source      = "${path.root}/install_webapp.sh"
     destination = "/tmp/install_webapp.sh"
   }
 
-  # Run the install_webapp.sh script
+  # Run the webapp installation script
   provisioner "shell" {
     inline = [
       "chmod +x /tmp/install_webapp.sh",
