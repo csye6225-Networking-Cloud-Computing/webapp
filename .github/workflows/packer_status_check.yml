@@ -25,8 +25,8 @@ jobs:
       - name: Zip webapp folder
         working-directory: ..
         run: |
-          ls -la
-          zip -r ./packer-template/webapp.zip ./webapp  # Zip and save directly into the packer-template folder
+          zip -r webapp.zip ./webapp  # Zipping webapp folder and storing zip in parent directory
+          mv webapp.zip ./packer-template/  # Move zip into packer-template folder
 
       - name: List contents of packer-template (ensure zip is there)
         working-directory: ./packer-template
