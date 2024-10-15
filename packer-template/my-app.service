@@ -13,10 +13,14 @@ ExecStart=/usr/bin/node /opt/webapp/app.js
 Restart=always
 RestartSec=10
 
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=nodejs-app
 
+# Load environment variables from file
+EnvironmentFile=/etc/environment
+
+# Set additional environment variables
 Environment=NODE_ENV=production
 Environment=PORT=8080
 
