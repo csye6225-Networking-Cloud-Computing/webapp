@@ -18,12 +18,11 @@ jobs:
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           sudo apt-get update && sudo apt-get install packer -y
 
-      # Adding a step to verify the directory contents to ensure the file is present
-      - name: Check directory structure after checkout
+      - name: List directory structure
         run: ls -R
 
       - name: Run packer fmt
-        run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl  # Correct path
+        run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl  # Path to the file
 
       - name: Fail if packer fmt modifies the template
         run: |
@@ -41,12 +40,11 @@ jobs:
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           sudo apt-get update && sudo apt-get install packer -y
 
-      # Adding directory check to verify presence of required files
-      - name: Check directory structure after checkout
-        run: ls -R
-
       - name: Initialize Packer
         run: packer init ./packer-template/ubuntu-mysql.pkr.hcl  # Correct path
+
+      - name: List directory structure after checkout
+        run: ls -R
 
       - name: Run packer validate
         run: packer validate ./packer-template/ubuntu-mysql.pkr.hcl  # Correct path
