@@ -21,12 +21,10 @@ jobs:
       - name: List directory contents (for debugging)
         run: ls -R
 
-      # Zip the webapp folder located outside the repository root
-      - name: Zip webapp folder
-        working-directory: ..
+      # Zip the webapp folder located outside the repository root and save it directly into packer-template
+      - name: Zip webapp folder directly into packer-template
         run: |
-          zip -r webapp.zip ./webapp  # Zipping webapp folder and storing zip in parent directory
-          mv webapp.zip ./packer-template/  # Move zip into packer-template folder
+          zip -r ./packer-template/webapp.zip ../webapp  # Create zip directly in the packer-template directory
 
       - name: List contents of packer-template (ensure zip is there)
         working-directory: ./packer-template
