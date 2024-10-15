@@ -12,11 +12,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Install Packer
+      - name: Install latest Packer
         run: |
           curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-          sudo apt-get update && sudo apt-get install packer -y
+          sudo apt-get update && sudo apt-get install packer
 
       - name: List directory contents (for debugging)
         run: ls -R
@@ -34,9 +34,13 @@ jobs:
         working-directory: ./packer-template
         run: ls -la
 
+      - name: Display file contents
+        working-directory: ./packer-template
+        run: cat ubuntu-mysql.pkr.hcl
+
       - name: Run packer fmt
         working-directory: ./packer-template
-        run: packer fmt -check ubuntu-mysql.pkr.hcl
+        run: packer fmt -check -diff ubuntu-mysql.pkr.hcl
 
       - name: Fail if packer fmt modifies the template
         run: |
@@ -48,11 +52,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Install Packer
+      - name: Install latest Packer
         run: |
           curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-          sudo apt-get update && sudo apt-get install packer -y
+          sudo apt-get update && sudo apt-get install packer
 
       # Ensure the necessary files are in the packer-template folder
       - name: Ensure my-app.service and install_webapp.sh are present
@@ -61,11 +65,14 @@ jobs:
           cp install_webapp.sh ./packer-template/
 
       - name: Initialize Packer
-        run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
+        working-directory: ./packer-template
+        run: packer init ubuntu-mysql.pkr.hcl
 
       - name: Run packer validate
-        run: packer validate ./packer-template/ubuntu-mysql.pkr.hcl
+        working-directory: ./packer-template
+        run: packer validate ubuntu-mysql.pkr.hcl
 
       - name: Fail if packer validate fails
+        working-directory: ./packer-template
         run: |
-          packer validate ./packer-template/ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1)
+          packer validate ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1)
