@@ -43,7 +43,7 @@ source "amazon-ebs" "my-ubuntu-image" {
 
   run_tags = {
     BuildBy = "Packer"
-  
+  }
 
   ami_regions = ["us-east-1"]
 
