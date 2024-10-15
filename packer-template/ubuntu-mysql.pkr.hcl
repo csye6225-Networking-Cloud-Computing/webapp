@@ -65,7 +65,7 @@ build {
 
   # Copy the webapp.zip to the /tmp directory
   provisioner "file" {
-    source      = "../../webapp.zip"
+    source      = "${path.root}/webapp.zip"
     destination = "/tmp/webapp.zip"
   }
 
@@ -77,9 +77,9 @@ build {
     ]
   }
 
-  # Copy the my-app.service file to /tmp and then move it to /opt with sudo
+  # Copy the my-app.service file to /tmp
   provisioner "file" {
-    source      = "./my-app.service"
+    source      = "${path.root}/my-app.service"
     destination = "/tmp/my-app.service"
   }
 
@@ -91,12 +91,13 @@ build {
     ]
   }
 
-  # Continue running the install_webapp.sh script
+  # Copy the install_webapp.sh script to /tmp
   provisioner "file" {
-    source      = "./install_webapp.sh"
+    source      = "${path.root}/install_webapp.sh"
     destination = "/tmp/install_webapp.sh"
   }
 
+  # Run the install_webapp.sh script
   provisioner "shell" {
     inline = [
       "chmod +x /tmp/install_webapp.sh",
