@@ -57,6 +57,14 @@ jobs:
           echo "DB_PORT: ${{ secrets.DB_PORT }}"
         continue-on-error: true  # Prevent job from failing for security reasons
 
+      # Fail step if the required environment variables are empty
+      - name: Ensure required secrets are set
+        run: |
+          if [[ -z "${{ secrets.DB_HOST }}" || -z "${{ secrets.DB_USER }}" || -z "${{ secrets.DB_PASSWORD }}" || -z "${{ secrets.DB_NAME }}" ]]; then
+            echo "One or more environment variables are not set!"
+            exit 1
+          fi
+
       - name: Create variables file
         run: |
           cat << EOF > packer-template/variables.pkrvars.hcl
