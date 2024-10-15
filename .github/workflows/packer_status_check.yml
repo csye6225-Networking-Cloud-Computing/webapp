@@ -30,8 +30,13 @@ jobs:
         working-directory: ./packer-template
         run: ls -la
 
+      - name: Verify file existence before packer fmt
+        working-directory: ./packer-template
+        run: ls -la
+
       - name: Run packer fmt
-        run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl
+        working-directory: ./packer-template
+        run: packer fmt -check ubuntu-mysql.pkr.hcl
 
       - name: Fail if packer fmt modifies the template
         run: |
@@ -49,6 +54,12 @@ jobs:
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           sudo apt-get update && sudo apt-get install packer -y
 
+      # Ensure the necessary files are in the packer-template folder
+      - name: Ensure my-app.service and install_webapp.sh are present
+        run: |
+          cp my-app.service ./packer-template/
+          cp install_webapp.sh ./packer-template/
+
       - name: Initialize Packer
         run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
 
@@ -57,4 +68,4 @@ jobs:
 
       - name: Fail if packer validate fails
         run: |
-          packer validate ./packer-template/ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1) 
+          packer validate ./packer-template/ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1)
