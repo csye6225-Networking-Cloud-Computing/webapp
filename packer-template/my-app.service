@@ -3,26 +3,20 @@ Description=Node.js Web Application
 After=network.target
 
 [Service]
-# The user and group the service will run as
 User=csye6225
 Group=csye6225
 
-# The working directory for the service
-WorkingDirectory=/opt/webapp/webapp
+WorkingDirectory=/opt/webapp
 
-# The command to start the service (node running the app)
-ExecStart=/usr/bin/node /opt/webapp/webapp/app.js
+ExecStart=/usr/bin/node /opt/webapp/app.js
 
-# Restart the service on failure
 Restart=always
 RestartSec=10
 
-# Output logging
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=nodejs-app
 
-# Environment variables
 Environment=NODE_ENV=production
 Environment=PORT=8080
 
