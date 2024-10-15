@@ -43,7 +43,7 @@ source "amazon-ebs" "my-ubuntu-image" {
 
   run_tags = {
     BuildBy = "Packer"
-  }
+  
 
   ami_regions = ["us-east-1"]
 
@@ -93,7 +93,6 @@ build {
 
   # Copy the install_webapp.sh script to /tmp
   provisioner "file" {
-    
     source      = "${path.root}/install_webapp.sh"
     destination = "/tmp/install_webapp.sh"
   }
