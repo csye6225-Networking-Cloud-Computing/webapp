@@ -1,4 +1,4 @@
-name: Packer Status Check
+name: Packer Validate
 
 on:
   pull_request:
@@ -6,66 +6,31 @@ on:
       - main
 
 jobs:
-  packer-fmt:
+  packer:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Install Packer
+      # Create the webapp.zip from the webapp folder while excluding unnecessary files
+      - name: Zip folder creation
         run: |
-          curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-          sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-          sudo apt-get update && sudo apt-get install packer -y
-
-      - name: List directory contents (for debugging)
-        run: ls -R
-
-      # Zip the webapp folder located outside the repository root and save it directly into packer-template
-      - name: Zip webapp folder directly into packer-template
+          zip -r packer-template/webapp.zip ./webapp -x ".git*" ".github*" "node_modules*"
+      
+      # Copy the necessary files to the packer-template directory
+      - name: Copy service and script files
         run: |
-          zip -r ./packer-template/webapp.zip ../webapp  # Create zip directly in the packer-template directory
+          cp my-app.service packer-template/
+          cp install_webapp.sh packer-template/
 
-      - name: List contents of packer-template (ensure zip is there)
-        working-directory: ./packer-template
-        run: ls -la
+      # List the contents of packer-template to ensure all files are in place
+      - name: List Directory Contents After Copy
+        run: ls -al packer-template
 
-      - name: Verify file existence before packer fmt
-        working-directory: ./packer-template
-        run: ls -la
-
-      - name: Run packer fmt
-        working-directory: ./packer-template
-        run: packer fmt -check ubuntu-mysql.pkr.hcl
-
-      - name: Fail if packer fmt modifies the template
+      # Initialize and Validate Packer template
+      - name: Initialize and Validate Packer
         run: |
-          git diff --exit-code || (echo "Packer fmt modified the packer template!" && exit 1)
-
-  packer-validate:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Install Packer
-        run: |
-          curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-          sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-          sudo apt-get update && sudo apt-get install packer -y
-
-      # Ensure the necessary files are in the packer-template folder
-      - name: Ensure my-app.service and install_webapp.sh are present
-        run: |
-          cp my-app.service ./packer-template/
-          cp install_webapp.sh ./packer-template/
-
-      - name: Initialize Packer
-        run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
-
-      - name: Run packer validate
-        run: packer validate ./packer-template/ubuntu-mysql.pkr.hcl
-
-      - name: Fail if packer validate fails
-        run: |
-          packer validate ./packer-template/ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1)
+          cd packer-template
+          packer init ubuntu-mysql.pkr.hcl
+          packer fmt -check ubuntu-mysql.pkr.hcl
+          packer validate ubuntu-mysql.pkr.hcl
