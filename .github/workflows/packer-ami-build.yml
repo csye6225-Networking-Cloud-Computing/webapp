@@ -24,6 +24,11 @@ jobs:
         with:
           version: "1.9.4"
 
+      - name: Create webapp.zip
+        run: |
+          zip -r webapp.zip . -x "*.git*" "packer-template/*" ".github/*"
+          mv webapp.zip packer-template/
+
       - name: List repository contents
         run: |
           echo "Root directory contents:"
@@ -31,43 +36,16 @@ jobs:
           echo "packer-template directory contents:"
           ls -la packer-template
 
-      - name: Check and copy necessary files
+      - name: Check necessary files
         run: |
-          # Check for webapp.zip
-          if [ -f "webapp.zip" ]; then
-            cp webapp.zip packer-template/
-          elif [ -f "packer-template/webapp.zip" ]; then
-            echo "webapp.zip already in packer-template directory"
-          else
-            echo "webapp.zip not found in root or packer-template directory"
-            echo "Current directory structure:"
-            find . -type f
-            exit 1
-          fi
-          
-          # Check for my-app.service
-          if [ -f "my-app.service" ]; then
-            cp my-app.service packer-template/
-          elif [ -f "packer-template/my-app.service" ]; then
-            echo "my-app.service already in packer-template directory"
-          else
-            echo "my-app.service not found in root or packer-template directory"
-            echo "Current directory structure:"
-            find . -type f
-            exit 1
-          fi
-          
-          # Check for install_webapp.sh
-          if [ -f "install_webapp.sh" ]; then
-            cp install_webapp.sh packer-template/
-          elif [ -f "packer-template/install_webapp.sh" ]; then
-            echo "install_webapp.sh already in packer-template directory"
-          else
-            echo "install_webapp.sh not found in root or packer-template directory"
-            echo "Current directory structure:"
-            find . -type f
-            exit 1
-          fi
+          for file in webapp.zip my-app.service install_webapp.sh; do
+            if [ ! -f "packer-template/$file" ]; then
+              echo "$file not found in packer-template directory"
+              echo "Current directory structure:"
+              find . -type f
+              exit 1
+            fi
+          done
 
       - name: Create variables file
         run: |
@@ -108,5 +86,3 @@ jobs:
         if: always()
         run: |
           rm -f packer-template/webapp.zip
-          rm -f packer-template/my-app.service
-          rm -f packer-template/install_webapp.sh
