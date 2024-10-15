@@ -18,17 +18,17 @@ jobs:
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           sudo apt-get update && sudo apt-get install packer -y
 
-      - name: List directory contents (for debugging)
+      - name: List contents of repository root (for debugging)
         run: ls -R
 
-      # Zip the webapp folder located outside the repository root and save it directly into packer-template
-      - name: Zip webapp folder directly into packer-template
-        run: |
-          zip -r ./packer-template/webapp.zip ../webapp  # Create zip directly in the packer-template directory
+      - name: List contents of packer-template (for debugging)
+        run: ls -R ./packer-template
 
-      - name: List contents of packer-template (ensure zip is there)
+      # Zip the webapp folder (ensure it exists)
+      - name: Zip webapp folder
+        run: |
+          zip -r webapp.zip ../webapp  # Assuming the webapp folder is in the parent directory
         working-directory: ./packer-template
-        run: ls -la
 
       - name: Run packer fmt
         run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl
@@ -48,6 +48,10 @@ jobs:
           curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           sudo apt-get update && sudo apt-get install packer -y
+
+      # Ensure the webapp.zip is created correctly
+      - name: Verify webapp.zip
+        run: ls -la ./packer-template
 
       - name: Initialize Packer
         run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
