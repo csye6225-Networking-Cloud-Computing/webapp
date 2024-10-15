@@ -12,9 +12,9 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
-variable "source_ami" {
+variable "instance_type" {
   type    = string
-  default = "ami-0866a3c8686eaeeba" # Ubuntu 24.04 LTS AMI ID for us-east-1
+  default = "t2.micro"
 }
 
 variable "ssh_username" {
@@ -22,86 +22,84 @@ variable "ssh_username" {
   default = "ubuntu"
 }
 
-variable "subnet_id" {
+variable "ami_users" {
   type    = string
-  default = "subnet-063beaf3ff4e82a4d"
+}
+
+variable "db_host" {
+  type    = string
+}
+
+variable "db_user" {
+  type    = string
+}
+
+variable "db_password" {
+  type    = string
+}
+
+variable "db_name" {
+  type    = string
+}
+
+variable "db_port" {
+  type    = string
+}
+
+data "amazon-ami" "ubuntu" {
+  filters = {
+    name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-24.04-amd64-server-*"
+    root-device-type    = "ebs"
+    virtualization-type = "hvm"
+  }
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
 }
 
 source "amazon-ebs" "my-ubuntu-image" {
+  ami_name        = "my-custom-ubuntu-image-${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  instance_type   = var.instance_type
   region          = var.aws_region
-  instance_type   = "t2.small"
-  source_ami      = var.source_ami
+  source_ami      = data.amazon-ami.ubuntu.id
   ssh_username    = var.ssh_username
-  subnet_id       = var.subnet_id
-  ami_name        = "my-custom-ubuntu-image-{{timestamp}}"
-  ami_description = "Custom image for CSYE6225"
+  ami_users       = [var.ami_users]
 
   tags = {
-    Name        = "CSYE6225_Custom_AMI"
-    Environment = "dev"
-  }
-
-  run_tags = {
-    BuildBy = "Packer"
-  }
-
-  ami_regions = ["us-east-1"]
-
-  aws_polling {
-    delay_seconds = 120
-    max_attempts  = 50
-  }
-
-  launch_block_device_mappings {
-    device_name           = "/dev/sda1"
-    volume_size           = 25
-    volume_type           = "gp2"
-    delete_on_termination = true
+    Name = "CSYE6225_Custom_AMI"
   }
 }
 
 build {
   sources = ["source.amazon-ebs.my-ubuntu-image"]
 
-  # Copy the webapp.zip to the /tmp directory
   provisioner "file" {
-    source      = "${path.root}/webapp.zip"
+    source      = "webapp.zip"
     destination = "/tmp/webapp.zip"
   }
 
-  # Move the webapp.zip to /opt and set permissions
-  provisioner "shell" {
-    inline = [
-      "sudo mv /tmp/webapp.zip /opt/webapp.zip",
-      "sudo chmod 644 /opt/webapp.zip"
-    ]
-  }
-
-  # Copy the my-app.service file to /tmp
   provisioner "file" {
-    source      = "${path.root}/my-app.service"
+    source      = "my-app.service"
     destination = "/tmp/my-app.service"
   }
 
-  # Move the my-app.service to /opt with root privileges
-  provisioner "shell" {
-    inline = [
-      "sudo mv /tmp/my-app.service /opt/my-app.service",
-      "sudo chmod 644 /opt/my-app.service"
-    ]
-  }
-
-  # Copy the install_webapp.sh script to /tmp
   provisioner "file" {
-    source      = "${path.root}/install_webapp.sh"
+    source      = "install_webapp.sh"
     destination = "/tmp/install_webapp.sh"
   }
 
-  # Run the install_webapp.sh script
   provisioner "shell" {
     inline = [
+      "sudo mv /tmp/webapp.zip /opt/webapp.zip",
+      "sudo mv /tmp/my-app.service /etc/systemd/system/my-app.service",
       "chmod +x /tmp/install_webapp.sh",
       "sudo /tmp/install_webapp.sh"
+    ]
+    environment_vars = [
+      "DB_HOST=${var.db_host}",
+      "DB_USER=${var.db_user}",
+      "DB_PASSWORD=${var.db_password}",
+      "DB_NAME=${var.db_name}",
+      "DB_PORT=${var.db_port}"
     ]
   }
 }
