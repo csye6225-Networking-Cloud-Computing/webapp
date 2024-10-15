@@ -29,24 +29,24 @@ variable "subnet_id" {
 
 # Declare the environment variable inputs
 variable "DB_HOST" {
-  type    = string
+  type = string
 }
 
 variable "DB_USER" {
-  type    = string
+  type = string
 }
 
 variable "DB_PASSWORD" {
-  type    = string
+  type = string
 }
 
 variable "DB_NAME" {
-  type    = string
+  type = string
 }
 
 variable "DB_PORT" {
   type    = string
-  default = "3306"  # Default port for MySQL
+  default = "3306" # Default port for MySQL
 }
 
 source "amazon-ebs" "my-ubuntu-image" {
