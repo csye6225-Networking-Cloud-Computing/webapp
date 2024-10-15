@@ -24,11 +24,31 @@ jobs:
         with:
           version: "1.9.4"
 
+      - name: List directory contents
+        run: ls -la
+
       - name: Copy necessary files
         run: |
-          cp webapp.zip packer-template/
-          cp my-app.service packer-template/
-          cp install_webapp.sh packer-template/
+          if [ -f "webapp.zip" ]; then
+            cp webapp.zip packer-template/
+          else
+            echo "webapp.zip not found"
+            exit 1
+          fi
+          
+          if [ -f "my-app.service" ]; then
+            cp my-app.service packer-template/
+          else
+            echo "my-app.service not found"
+            exit 1
+          fi
+          
+          if [ -f "install_webapp.sh" ]; then
+            cp install_webapp.sh packer-template/
+          else
+            echo "install_webapp.sh not found"
+            exit 1
+          fi
 
       - name: Create variables file
         run: |
