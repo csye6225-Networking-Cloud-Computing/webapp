@@ -55,6 +55,7 @@ jobs:
           ssh_username = "ubuntu"
           source_ami = "ami-0866a3c8686eaeeba"
           subnet_id = "subnet-063beaf3ff4e82a4d"
+          ami_users = "${{ secrets.DEMO_ACCOUNT_ID }}"
           EOF
 
       - name: Initialize Packer
