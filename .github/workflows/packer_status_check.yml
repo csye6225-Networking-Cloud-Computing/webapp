@@ -18,8 +18,11 @@ jobs:
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           sudo apt-get update && sudo apt-get install packer -y
 
+      - name: Set working directory
+        run: cd ./packer-template/
+
       - name: Run packer fmt
-        run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl
+        run: packer fmt -check ubuntu-mysql.pkr.hcl
 
       - name: Fail if packer fmt modifies the template
         run: |
@@ -37,12 +40,15 @@ jobs:
           sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           sudo apt-get update && sudo apt-get install packer -y
 
+      - name: Set working directory
+        run: cd ./packer-template/
+
       - name: Initialize Packer
-        run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
+        run: packer init ubuntu-mysql.pkr.hcl
 
       - name: Run packer validate
-        run: packer validate ./packer-template/ubuntu-mysql.pkr.hcl
+        run: packer validate ubuntu-mysql.pkr.hcl
 
       - name: Fail if packer validate fails
         run: |
-          packer validate ./packer-template/ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1)
+          packer validate ubuntu-mysql.pkr.hcl || (echo "Packer template validation failed!" && exit 1)
