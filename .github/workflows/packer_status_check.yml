@@ -21,10 +21,13 @@ jobs:
       - name: List directory contents (for debugging)
         run: ls -R
 
+      # Zip the webapp folder located outside the repository root
       - name: Zip webapp folder
         run: |
-          ls -R # Check if webapp directory exists
-          zip -r webapp.zip webapp # Assuming webapp is in the root directory
+         ls -la ../
+         zip -r webapp.zip ../webapp  # Referring to the parent directory to find webapp folder
+        working-directory: ./packer-template
+
 
       - name: Run packer fmt
         run: packer fmt -check ./packer-template/ubuntu-mysql.pkr.hcl
