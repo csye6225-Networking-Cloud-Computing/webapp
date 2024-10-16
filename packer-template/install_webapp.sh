@@ -23,7 +23,6 @@ echo "Starting MySQL service..."
 sudo systemctl enable mysql
 sudo systemctl start mysql
 
-# Log in to MySQL and set up the database
 echo "Debugging environment variables:"
 echo "DB_HOST: ${DB_HOST}"
 echo "DB_USER: ${DB_USER}"
