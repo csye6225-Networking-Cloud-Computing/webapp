@@ -59,6 +59,15 @@ Environment="DB_NAME=${DB_NAME}"
 Environment="DB_PORT=${DB_PORT}"
 EOT
 
+# Add this section to persist environment variables system-wide
+sudo tee /etc/profile.d/myapp_env.sh > /dev/null <<EOT
+export DB_HOST='${DB_HOST}'
+export DB_USER='${DB_USER}'
+export DB_PASSWORD='${DB_PASSWORD}'
+export DB_NAME='${DB_NAME}'
+export DB_PORT='${DB_PORT}'
+EOT
+sudo chmod 644 /etc/profile.d/myapp_env.sh
 
 # Set up systemd service
 debug_log "Setting up systemd service..."
