@@ -55,7 +55,7 @@ jobs:
           ssh_username = "ubuntu"
           source_ami = "ami-0866a3c8686eaeeba"
           subnet_id = "subnet-063beaf3ff4e82a4d"
-          #ami_users = "${{ secrets.DEMO_ACCOUNT_ID }}"
+          ami_users = "${{ secrets.DEMO_ACCOUNT_ID }}"
           EOF
 
       - name: Initialize Packer
@@ -68,7 +68,7 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_PORT: ${{ secrets.DB_PORT }}
-          #DEMO_ACCOUNT_ID: ${{ secrets.DEMO_ACCOUNT_ID }}
+          DEMO_ACCOUNT_ID: ${{ secrets.DEMO_ACCOUNT_ID }}
         run: |
           cd packer-template
           packer build -var-file=variables.pkrvars.hcl \
@@ -77,7 +77,7 @@ jobs:
             -var "db_password=$DB_PASSWORD" \
             -var "db_name=$DB_NAME" \
             -var "db_port=$DB_PORT" \
-            #-var "demo_account_id=$DEMO_ACCOUNT_ID" \
+            -var "demo_account_id=$DEMO_ACCOUNT_ID" \
             ubuntu-mysql.pkr.hcl
 
       - name: Get AMI ID
