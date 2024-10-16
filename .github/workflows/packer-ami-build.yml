@@ -29,35 +29,6 @@ jobs:
           zip -r webapp.zip . -x "*.git*" "packer-template/*" ".github/*"
           mv webapp.zip packer-template/
 
-      - name: List repository contents
-        run: |
-          echo "Root directory contents:"
-          ls -la
-          echo "packer-template directory contents:"
-          ls -la packer-template
-
-      - name: Check necessary files
-        run: |
-          for file in webapp.zip my-app.service install_webapp.sh; do
-            if [ ! -f "packer-template/$file" ]; then
-              echo "$file not found in packer-template directory"
-              echo "Current directory structure:"
-              find . -type f
-              exit 1
-            fi
-          done
-
-      - name: Create variables file
-        run: |
-          cat << EOF > packer-template/variables.pkrvars.hcl
-          aws_region = "us-east-1"
-          instance_type = "t2.small"
-          ssh_username = "ubuntu"
-          source_ami = "ami-0866a3c8686eaeeba"
-          subnet_id = "subnet-063beaf3ff4e82a4d"
-          ami_users = "${{ secrets.DEMO_ACCOUNT_ID }}"
-          EOF
-
       - name: Initialize Packer
         run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
 
@@ -71,13 +42,18 @@ jobs:
           DEMO_ACCOUNT_ID: ${{ secrets.DEMO_ACCOUNT_ID }}
         run: |
           cd packer-template
-          packer build -var-file=variables.pkrvars.hcl \
-            -var "db_host=$DB_HOST" \
-            -var "db_user=$DB_USER" \
-            -var "db_password=$DB_PASSWORD" \
-            -var "db_name=$DB_NAME" \
-            -var "db_port=$DB_PORT" \
-            -var "demo_account_id=$DEMO_ACCOUNT_ID" \
+          packer build \
+            -var "aws_region=us-east-1" \
+            -var "instance_type=t2.small" \
+            -var "ssh_username=ubuntu" \
+            -var "source_ami=ami-0866a3c8686eaeeba" \
+            -var "subnet_id=subnet-063beaf3ff4e82a4d" \
+            -var "ami_users=${{ secrets.DEMO_ACCOUNT_ID }}" \
+            -var "db_host=${DB_HOST}" \
+            -var "db_user=${DB_USER}" \
+            -var "db_password=${DB_PASSWORD}" \
+            -var "db_name=${DB_NAME}" \
+            -var "db_port=${DB_PORT}" \
             ubuntu-mysql.pkr.hcl
 
       - name: Get AMI ID
@@ -91,8 +67,3 @@ jobs:
           aws ec2 modify-image-attribute \
             --image-id ${{ steps.get-ami-id.outputs.ami_id }} \
             --launch-permission "Add=[{UserId=${{ secrets.DEMO_ACCOUNT_ID }}}]"
-
-      - name: Clean up
-        if: always()
-        run: |
-          rm -f packer-template/webapp.zip
