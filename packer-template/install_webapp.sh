@@ -46,8 +46,11 @@ sudo useradd -r -s /usr/sbin/nologin csye6225
 sudo chown -R csye6225:csye6225 /opt/webapp
 
 # Set environment variables securely
-debug_log "Setting environment variables..."
-sudo tee /etc/systemd/system/my-app.service.d/override.conf > /dev/null <<EOT
+# Create the directory if it doesn't exist
+sudo mkdir -p /etc/systemd/system/my-app.service.d
+
+# Now proceed to create the override.conf file
+sudo tee /etc/systemd/system/my-app.service.d/override.conf <<EOT
 [Service]
 Environment="DB_HOST=${DB_HOST}"
 Environment="DB_USER=${DB_USER}"
@@ -55,6 +58,7 @@ Environment="DB_PASSWORD=${DB_PASSWORD}"
 Environment="DB_NAME=${DB_NAME}"
 Environment="DB_PORT=${DB_PORT}"
 EOT
+
 
 # Set up systemd service
 debug_log "Setting up systemd service..."
