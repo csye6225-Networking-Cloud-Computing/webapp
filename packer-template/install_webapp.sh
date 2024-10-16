@@ -21,34 +21,15 @@ sudo systemctl enable mysql
 sudo systemctl start mysql
 
 # Log in to MySQL and set up the database
-# Set default values or use environment variables
-DB_NAME=${DB_NAME:-default_database_name}
-DB_USER=${DB_USER:-default_user}
-DB_PASSWORD=${DB_PASSWORD:-}  # Allow empty password
-
-# Check if essential variables are set
-if [ -z "$DB_NAME" ] || [ -z "$DB_USER" ]; then
-    echo "Error: DB_NAME or DB_USER is not set"
-    exit 1
-fi
-
 echo "Setting up MySQL database..."
-
-# Execute MySQL commands
 sudo mysql -u root <<EOF
-CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
-CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';  # Empty password allowed here
-GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
+CREATE DATABASE IF NOT EXISTS ${DB_NAME};
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASSWORD}';
+GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
+EXIT;
 EOF
 
-# Check if MySQL commands were successful
-if [ $? -eq 0 ]; then
-    echo "Database setup completed successfully."
-else
-    echo "Error: Database setup failed."
-    exit 1
-fi
 
 # Ensure the /opt/webapp directory exists
 echo "Unzipping webapp.zip to /opt/webapp..."
