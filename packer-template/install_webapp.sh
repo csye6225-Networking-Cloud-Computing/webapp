@@ -20,24 +20,19 @@ echo "Starting MySQL service..."
 sudo systemctl enable mysql
 sudo systemctl start mysql
 
-# Log in to MySQL and set up the database
 # Set default values or use environment variables
 DB_NAME=${DB_NAME:-default_database_name}
 DB_USER=${DB_USER:-default_user}
-DB_PASSWORD=${DB_PASSWORD:-}  # Allow empty password
-
-# Check if essential variables are set
-if [ -z "$DB_NAME" ] || [ -z "$DB_USER" ]; then
-    echo "Error: DB_NAME or DB_USER is not set"
-    exit 1
-fi
+DB_PASSWORD=${DB_PASSWORD:-your_password}  # Replace 'your_password' with the actual password you want to set
 
 echo "Setting up MySQL database..."
 
 # Execute MySQL commands
 sudo mysql -u root <<EOF
+ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASSWORD}';
+FLUSH PRIVILEGES;
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
-CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';  # Empty password allowed here
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
 GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
 EOF
