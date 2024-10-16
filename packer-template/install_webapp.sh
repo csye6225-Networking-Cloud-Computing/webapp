@@ -27,6 +27,11 @@ echo "Starting MySQL setup..."
 sudo systemctl status mysql > /dev/null 2>&1
 if [ $? -eq 0 ]; then
   echo "MySQL service is running."
+  echo "***DEBUG***"
+  echo "DB_NAME :${DB_NAME}"
+  echo "DB_USER :${DB_USER}"
+  echo "DB_PASSWORD :${DB_PASSWORD}"
+  echo "DB_PORT :${DB_PORT}"
 else
   echo "Starting MySQL service..."
   sudo systemctl start mysql
