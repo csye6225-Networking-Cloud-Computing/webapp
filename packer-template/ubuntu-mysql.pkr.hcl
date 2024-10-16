@@ -14,7 +14,7 @@ variable "aws_region" {
 
 variable "source_ami" {
   type    = string
-  default = "ami-0866a3c8686eaeeba"
+  default = "ami-0866a3c8686eaeeba" # Ubuntu 24.04 LTS AMI ID for us-east-1
 }
 
 variable "instance_type" {
@@ -97,18 +97,20 @@ build {
   }
 
   provisioner "shell" {
+    environment_vars = [
+      "DB_HOST=${var.db_host}",
+      "DB_USER=${var.db_user}",
+      "DB_PASSWORD=${var.db_password}",
+      "DB_NAME=${var.db_name}",
+      "DB_PORT=${var.db_port}"
+    ]
     inline = [
       "sudo mv /tmp/webapp.zip /opt/webapp.zip",
       "sudo chmod 644 /opt/webapp.zip",
       "sudo mv /tmp/my-app.service /opt/my-app.service",
       "sudo chmod 644 /opt/my-app.service",
       "chmod +x /tmp/install_webapp.sh",
-      "sudo /tmp/install_webapp.sh",
-      "grep -qxF 'DB_HOST=${var.db_host}' /etc/environment || echo 'DB_HOST=${var.db_host}' | sudo tee -a /etc/environment",
-      "grep -qxF 'DB_USER=${var.db_user}' /etc/environment || echo 'DB_USER=${var.db_user}' | sudo tee -a /etc/environment",
-      "grep -qxF 'DB_PASSWORD=${var.db_password}' /etc/environment || echo 'DB_PASSWORD=${var.db_password}' | sudo tee -a /etc/environment",
-      "grep -qxF 'DB_NAME=${var.db_name}' /etc/environment || echo 'DB_NAME=${var.db_name}' | sudo tee -a /etc/environment",
-      "grep -qxF 'DB_PORT=${var.db_port}' /etc/environment || echo 'DB_PORT=${var.db_port}' | sudo tee -a /etc/environment",
+      "sudo -E /tmp/install_webapp.sh"
     ]
   }
 }

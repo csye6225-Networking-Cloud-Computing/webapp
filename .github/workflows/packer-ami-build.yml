@@ -60,6 +60,17 @@ jobs:
       - name: Initialize Packer
         run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
 
+      - name: Validate Packer Template
+        run: |
+          cd packer-template
+          packer validate -var-file=variables.pkrvars.hcl \
+            -var "db_host=${{ secrets.DB_HOST }}" \
+            -var "db_user=${{ secrets.DB_USER }}" \
+            -var "db_password=${{ secrets.DB_PASSWORD }}" \
+            -var "db_name=${{ secrets.DB_NAME }}" \
+            -var "db_port=${{ secrets.DB_PORT }}" \
+            ubuntu-mysql.pkr.hcl
+
       - name: Build AMI
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
@@ -69,7 +80,7 @@ jobs:
           DB_PORT: ${{ secrets.DB_PORT }}
         run: |
           cd packer-template
-          packer build -var-file=variables.pkrvars.hcl \
+          packer build -debug -var-file=variables.pkrvars.hcl \
             -var "db_host=$DB_HOST" \
             -var "db_user=$DB_USER" \
             -var "db_password=$DB_PASSWORD" \
@@ -87,3 +98,13 @@ jobs:
         if: always()
         run: |
           rm -f packer-template/webapp.zip
+
+      - name: Debug Output
+        if: failure()
+        run: |
+          echo "Packer template contents:"
+          cat packer-template/ubuntu-mysql.pkr.hcl
+          echo "Variables file contents:"
+          cat packer-template/variables.pkrvars.hcl
+          echo "Environment variables (excluding sensitive data):"
+          env | grep -v -e DB_PASSWORD -e AWS
