@@ -52,10 +52,6 @@ variable "db_port" {
   type = string
 }
 
-/*variable "demo_account_id" {
-  type = string
-}*/
-
 source "amazon-ebs" "my-ubuntu-image" {
   region          = var.aws_region
   instance_type   = var.instance_type
@@ -73,8 +69,6 @@ source "amazon-ebs" "my-ubuntu-image" {
   run_tags = {
     BuildBy = "Packer"
   }
-
-  //ami_users = [var.demo_account_id]
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
@@ -103,13 +97,28 @@ build {
   }
 
   provisioner "shell" {
+    environment_vars = [
+      "DB_HOST=${var.db_host}",
+      "DB_USER=${var.db_user}",
+      "DB_PASSWORD=${var.db_password}",
+      "DB_NAME=${var.db_name}",
+      "DB_PORT=${var.db_port}"
+    ]
     inline = [
+      "set -e",
+      "set -x",
+      "echo 'Debugging environment variables:'",
+      "echo DB_HOST=${var.db_host}",
+      "echo DB_USER=${var.db_user}",
+      "echo DB_NAME=${var.db_name}",
+      "echo DB_PORT=${var.db_port}",
+      "echo DB_PASSWORD=${var.db_password:0:3}...", # Only show first 3 chars of password
       "sudo mv /tmp/webapp.zip /opt/webapp.zip",
       "sudo chmod 644 /opt/webapp.zip",
       "sudo mv /tmp/my-app.service /opt/my-app.service",
       "sudo chmod 644 /opt/my-app.service",
       "chmod +x /tmp/install_webapp.sh",
-      "sudo /tmp/install_webapp.sh",
+      "sudo -E /tmp/install_webapp.sh",
       "echo 'DB_HOST=${var.db_host}' | sudo tee -a /etc/environment",
       "echo 'DB_USER=${var.db_user}' | sudo tee -a /etc/environment",
       "echo 'DB_PASSWORD=${var.db_password}' | sudo tee -a /etc/environment",
