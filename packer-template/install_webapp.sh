@@ -1,3 +1,29 @@
+#!/bin/bash
+
+# Update package lists and install Node.js, npm, MySQL, and unzip
+echo "Updating packages and installing dependencies..."
+sudo apt-get update
+sudo apt-get install -y nodejs
+sudo apt-get install -y npm
+sudo apt-get install -y unzip  # Ensure unzip is installed
+sudo apt-get install -y mysql-server  # Install MySQL server
+
+# Set up MySQL for the first time
+echo "Configuring MySQL server..."
+sudo mysql_secure_installation <<EOF
+n
+y
+y
+y
+y
+EOF
+
+# Enable and start MySQL service
+echo "Starting MySQL service..."
+sudo systemctl enable mysql
+sudo systemctl start mysql
+
+# Log in to MySQL and set up the database
 echo "Debugging environment variables:"
 echo "DB_HOST: ${DB_HOST}"
 echo "DB_USER: ${DB_USER}"
