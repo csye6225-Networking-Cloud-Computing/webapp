@@ -20,70 +20,23 @@ echo "Starting MySQL service..."
 sudo systemctl enable mysql
 sudo systemctl start mysql
 
-# Execute MySQL commands with logging
-echo "Starting MySQL setup..."
+echo "Debugging environment variables:"
+echo "DB_HOST: ${DB_HOST}"
+echo "DB_USER: ${DB_USER}"
+echo "DB_NAME: ${DB_NAME}"
+echo "DB_PORT: ${DB_PORT}"
+echo "DB_PASSWORD: ${DB_PASSWORD:0:3}..." # Only show first 3 characters for security
 
-# Check if MySQL is running
-sudo systemctl status mysql > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-  echo "MySQL service is running."
-  echo "***DEBUG***"
-  echo "DB_NAME :${DB_NAME}"
-  echo "DB_USER :${DB_USER}"
-  echo "DB_PASSWORD :${DB_PASSWORD}"
-  echo "DB_PORT :${DB_PORT}"
-else
-  echo "Starting MySQL service..."
-  sudo systemctl start mysql
-fi
-
-echo "Configuring root user to allow passwordless access..."
+# MySQL setup
+echo "Setting up MySQL..."
 sudo mysql -u root <<EOF
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '';
 FLUSH PRIVILEGES;
-EOF
-
-if [ $? -eq 0 ]; then
-  echo "Root user configured for passwordless access."
-else
-  echo "Failed to configure root user."
-fi
-
-echo "Creating database ${DB_NAME} if it does not exist..."
-sudo mysql -u root <<EOF
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
-EOF
-
-if [ $? -eq 0 ]; then
-  echo "Database ${DB_NAME} created successfully or already exists."
-else
-  echo "Failed to create the database ${DB_NAME}."
-fi
-
-echo "Creating MySQL user ${DB_USER} if it does not exist..."
-sudo mysql -u root <<EOF
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '';
-EOF
-
-if [ $? -eq 0 ]; then
-  echo "MySQL user ${DB_USER} created successfully or already exists."
-else
-  echo "Failed to create MySQL user ${DB_USER}."
-fi
-
-echo "Granting privileges on ${DB_NAME} to ${DB_USER}..."
-sudo mysql -u root <<EOF
 GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
 EOF
-
-if [ $? -eq 0 ]; then
-  echo "Privileges granted to user ${DB_USER} on database ${DB_NAME}."
-else
-  echo "Failed to grant privileges to user ${DB_USER}."
-fi
-
-echo "MySQL setup completed."
 
 # Ensure the /opt/webapp directory exists
 echo "Unzipping webapp.zip to /opt/webapp..."
