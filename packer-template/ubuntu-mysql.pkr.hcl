@@ -52,9 +52,9 @@ variable "db_port" {
   type = string
 }
 
-variable "demo_account_id" {
+/*variable "demo_account_id" {
   type = string
-}
+}*/
 
 source "amazon-ebs" "my-ubuntu-image" {
   region          = var.aws_region
@@ -74,7 +74,7 @@ source "amazon-ebs" "my-ubuntu-image" {
     BuildBy = "Packer"
   }
 
-  ami_users = [var.demo_account_id]
+  //ami_users = [var.demo_account_id]
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
