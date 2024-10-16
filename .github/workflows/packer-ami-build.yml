@@ -1,3 +1,4 @@
+
 name: Packer AMI Build
 
 on:
@@ -28,14 +29,12 @@ jobs:
         run: |
           zip -r webapp.zip . -x "*.git*" "packer-template/*" ".github/*"
           mv webapp.zip packer-template/
-
       - name: List repository contents
         run: |
           echo "Root directory contents:"
           ls -la
           echo "packer-template directory contents:"
           ls -la packer-template
-
       - name: Check necessary files
         run: |
           for file in webapp.zip my-app.service install_webapp.sh; do
@@ -46,7 +45,6 @@ jobs:
               exit 1
             fi
           done
-
       - name: Create variables file
         run: |
           cat << EOF > packer-template/variables.pkrvars.hcl
@@ -56,7 +54,6 @@ jobs:
           source_ami = "ami-0866a3c8686eaeeba"
           subnet_id = "subnet-063beaf3ff4e82a4d"
           EOF
-
       - name: Initialize Packer
         run: packer init ./packer-template/ubuntu-mysql.pkr.hcl
 
@@ -76,13 +73,11 @@ jobs:
             -var "db_name=$DB_NAME" \
             -var "db_port=$DB_PORT" \
             ubuntu-mysql.pkr.hcl
-
       - name: Get AMI ID
         id: get-ami-id
         run: |
           AMI_ID=$(jq -r '.builds[-1].artifact_id' packer-template/manifest.json | cut -d ":" -f2)
           echo "ami_id=$AMI_ID" >> $GITHUB_OUTPUT
-
       - name: Clean up
         if: always()
         run: |
