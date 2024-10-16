@@ -22,13 +22,17 @@ sudo systemctl start mysql
 
 # Log in to MySQL and set up the database
 echo "Setting up MySQL database..."
-sudo mysql -u root <<EOF
+echo "DB_NAME: ${DB_NAME}"
+echo "DB_USER: ${DB_USER}"
+echo "DB_PASSWORD: ${DB_PASSWORD}"
+sudo -E mysql -u root <<EOF
 CREATE DATABASE IF NOT EXISTS ${DB_NAME};
-CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASSWORD}';
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
 GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
 EOF
+
 
 
 # Ensure the /opt/webapp directory exists
