@@ -14,7 +14,7 @@ variable "aws_region" {
 
 variable "source_ami" {
   type    = string
-  default = "ami-0866a3c8686eaeeba" # Ubuntu 24.04 LTS AMI ID for us-east-1
+  default = "ami-0866a3c8686eaeeba"
 }
 
 variable "instance_type" {
@@ -52,10 +52,6 @@ variable "db_port" {
   type = string
 }
 
-/*variable "demo_account_id" {
-  type = string
-}*/
-
 source "amazon-ebs" "my-ubuntu-image" {
   region          = var.aws_region
   instance_type   = var.instance_type
@@ -73,8 +69,6 @@ source "amazon-ebs" "my-ubuntu-image" {
   run_tags = {
     BuildBy = "Packer"
   }
-
-  //ami_users = [var.demo_account_id]
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
@@ -110,11 +104,11 @@ build {
       "sudo chmod 644 /opt/my-app.service",
       "chmod +x /tmp/install_webapp.sh",
       "sudo /tmp/install_webapp.sh",
-      "echo 'DB_HOST=${var.db_host}' | sudo tee -a /etc/environment",
-      "echo 'DB_USER=${var.db_user}' | sudo tee -a /etc/environment",
-      "echo 'DB_PASSWORD=${var.db_password}' | sudo tee -a /etc/environment",
-      "echo 'DB_NAME=${var.db_name}' | sudo tee -a /etc/environment",
-      "echo 'DB_PORT=${var.db_port}' | sudo tee -a /etc/environment",
+      "grep -qxF 'DB_HOST=${var.db_host}' /etc/environment || echo 'DB_HOST=${var.db_host}' | sudo tee -a /etc/environment",
+      "grep -qxF 'DB_USER=${var.db_user}' /etc/environment || echo 'DB_USER=${var.db_user}' | sudo tee -a /etc/environment",
+      "grep -qxF 'DB_PASSWORD=${var.db_password}' /etc/environment || echo 'DB_PASSWORD=${var.db_password}' | sudo tee -a /etc/environment",
+      "grep -qxF 'DB_NAME=${var.db_name}' /etc/environment || echo 'DB_NAME=${var.db_name}' | sudo tee -a /etc/environment",
+      "grep -qxF 'DB_PORT=${var.db_port}' /etc/environment || echo 'DB_PORT=${var.db_port}' | sudo tee -a /etc/environment",
     ]
   }
 }
