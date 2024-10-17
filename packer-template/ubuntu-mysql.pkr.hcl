@@ -105,7 +105,6 @@ build {
   ]
 }
 
-
   provisioner "shell" {
     environment_vars = [
       "DB_HOST=${var.db_host}",
