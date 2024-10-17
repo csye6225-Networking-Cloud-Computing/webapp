@@ -61,9 +61,11 @@ source "amazon-ebs" "my-ubuntu-image" {
   ami_name        = "my-custom-ubuntu-image-{{timestamp}}"
   ami_description = "Custom image for CSYE6225"
 
+  ami_users = ["194722437889"] # Replace with your DEMO AWS Account ID
+
   tags = {
     Name        = "CSYE6225_Custom_AMI"
-    Environment = "dev"
+    Environment = "demo"
   }
 
   run_tags = {
