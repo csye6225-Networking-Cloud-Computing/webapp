@@ -98,6 +98,13 @@ build {
     destination = "/tmp/install_webapp.sh"
   }
 
+  # Check if git is installed
+  provisioner "shell" {
+    inline = [
+      "if command -v git >/dev/null 2>&1; then echo 'Error: Git is installed!'; exit 1; else echo 'Git is NOT installed'; fi"
+    ]
+  }
+
   provisioner "shell" {
     environment_vars = [
       "DB_HOST=${var.db_host}",
