@@ -14,7 +14,7 @@ variable "aws_region" {
 
 variable "source_ami" {
   type    = string
-  default = "ami-0866a3c8686eaeeba" # Ubuntu 24.04 LTS AMI ID for us-east-1
+  default = "ami-0866a3c8686eaeeba"
 }
 
 variable "instance_type" {
@@ -61,7 +61,7 @@ source "amazon-ebs" "my-ubuntu-image" {
   ami_name        = "my-custom-ubuntu-image-{{timestamp}}"
   ami_description = "Custom image for CSYE6225"
 
-  ami_users = ["194722437889"] # Replace with your DEMO AWS Account ID
+  ami_users = ["194722437889"]
 
   tags = {
     Name        = "CSYE6225_Custom_AMI"
@@ -98,10 +98,9 @@ build {
     destination = "/tmp/install_webapp.sh"
   }
 
-  # Check if git is installed
   provisioner "shell" {
     inline = [
-      "if command -v git >/dev/null 2>&1; then echo 'Error: Git is installed!'; exit 1; else echo 'Git is NOT installed'; fi"
+      "if command -v git >/dev/null 2>&1; then echo 'Git is installed, removing it...'; sudo apt-get remove --purge -y git; else echo 'Git is NOT installed'; fi"
     ]
   }
 
