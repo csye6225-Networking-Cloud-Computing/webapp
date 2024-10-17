@@ -98,6 +98,14 @@ build {
     destination = "/tmp/install_webapp.sh"
   }
 
+  # Check if git is installed
+  provisioner "shell" {
+  inline = [
+    "if command -v git >/dev/null 2>&1; then echo 'Git is installed, removing it...'; sudo apt-get remove --purge -y git; else echo 'Git is NOT installed'; fi"
+  ]
+}
+
+
   provisioner "shell" {
     environment_vars = [
       "DB_HOST=${var.db_host}",
