@@ -65,7 +65,7 @@ source "amazon-ebs" "my-ubuntu-image" {
 
   tags = {
     Name        = "CSYE6225_Custom_AMI"
-    Environment = "dev"
+    Environment = "demo"
   }
 
   run_tags = {
