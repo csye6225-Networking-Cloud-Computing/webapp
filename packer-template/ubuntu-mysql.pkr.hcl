@@ -110,7 +110,15 @@ build {
       "sudo mv /tmp/my-app.service /opt/my-app.service",
       "sudo chmod 644 /opt/my-app.service",
       "chmod +x /tmp/install_webapp.sh",
-      "sudo -E /tmp/install_webapp.sh"
+      "sudo -E /tmp/install_webapp.sh",
+      "sudo tee /etc/profile.d/myapp_env.sh > /dev/null <<EOT",
+      "export DB_HOST='${var.db_host}'",
+      "export DB_USER='${var.db_user}'",
+      "export DB_PASSWORD='${var.db_password}'",
+      "export DB_NAME='${var.db_name}'",
+      "export DB_PORT='${var.db_port}'",
+      "EOT",
+      "sudo chmod 644 /etc/profile.d/myapp_env.sh"
     ]
   }
 }
