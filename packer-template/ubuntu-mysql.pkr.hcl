@@ -80,18 +80,13 @@ build {
 
   provisioner "shell" {
     inline = [
-      "if command -v git >/dev/null 2>&1; then echo 'Git is installed, removing it...'; sudo apt-get remove --purge -y git; else echo 'Git is NOT installed'; fi"
-    ]
-  }
-
-  provisioner "shell" {
-    inline = [
+      "if command -v git >/dev/null 2>&1; then echo 'Git is installed, removing it...'; sudo apt-get remove --purge -y git; else echo 'Git is NOT installed'; fi",
       "sudo mkdir -p /opt",
       "sudo mv /tmp/webapp.zip /opt/webapp.zip",
       "sudo chmod 644 /opt/webapp.zip",
       "sudo apt-get update",
-      "sudo apt-get install -y unzip", # Install unzip utility
-      "sudo unzip /opt/webapp.zip -d /opt/webapp",
+      "sudo apt-get install -y unzip",
+      "sudo unzip -o /opt/webapp.zip -d /opt/webapp",
       "sudo mv /tmp/my-app.service /etc/systemd/system/my-app.service",
       "sudo chmod 644 /etc/systemd/system/my-app.service",
       "chmod +x /tmp/install_webapp.sh",
