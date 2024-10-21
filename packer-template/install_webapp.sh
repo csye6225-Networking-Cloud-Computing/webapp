@@ -22,7 +22,7 @@ cd /opt/webapp
 
 # Install Node.js dependencies
 debug_log "Installing Node.js dependencies..."
-sudo npm install || { debug_log "Failed to install Node.js dependencies"; exit 1; }
+sudo npm install 2>&1 | tee /tmp/npm-install.log || { debug_log "Failed to install Node.js dependencies, check /tmp/npm-install.log"; exit 1; }
 
 # Create a non-privileged user for running the app and set permissions
 debug_log "Creating user 'csye6225' and setting permissions..."

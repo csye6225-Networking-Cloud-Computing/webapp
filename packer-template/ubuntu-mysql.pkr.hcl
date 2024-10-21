@@ -94,6 +94,8 @@ build {
       "sudo mkdir -p /opt",
       "sudo mv /tmp/webapp.zip /opt/webapp.zip",
       "sudo chmod 644 /opt/webapp.zip",
+      "sudo apt-get update",
+      "sudo apt-get install -y unzip",    # Install unzip utility
       "sudo unzip /opt/webapp.zip -d /opt/webapp",
       "sudo mv /tmp/my-app.service /etc/systemd/system/my-app.service",
       "sudo chmod 644 /etc/systemd/system/my-app.service",
