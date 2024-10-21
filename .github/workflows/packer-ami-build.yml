@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v2
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -23,9 +23,6 @@ jobs:
         uses: hashicorp/setup-packer@main
         with:
           version: "1.9.4"
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Create webapp.zip
         run: |
@@ -66,22 +63,36 @@ jobs:
       - name: Validate Packer Template
         run: |
           cd packer-template
-          packer validate -var-file=variables.pkrvars.hcl ubuntu-mysql.pkr.hcl
+          packer validate -var-file=variables.pkrvars.hcl \
+            -var "db_host=${{ secrets.DB_HOST }}" \
+            -var "db_user=${{ secrets.DB_USER }}" \
+            -var "db_password=${{ secrets.DB_PASSWORD }}" \
+            -var "db_name=${{ secrets.DB_NAME }}" \
+            -var "db_port=${{ secrets.DB_PORT }}" \
+            ubuntu-mysql.pkr.hcl
 
       - name: Build AMI
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
         run: |
           cd packer-template
-          packer build -debug -var-file=variables.pkrvars.hcl ubuntu-mysql.pkr.hcl
+          packer build -debug -var-file=variables.pkrvars.hcl \
+            -var "db_host=$DB_HOST" \
+            -var "db_user=$DB_USER" \
+            -var "db_password=$DB_PASSWORD" \
+            -var "db_name=$DB_NAME" \
+            -var "db_port=$DB_PORT" \
+            ubuntu-mysql.pkr.hcl
 
       - name: Get AMI ID
         id: get-ami-id
         run: |
           AMI_ID=$(jq -r '.builds[-1].artifact_id' packer-template/manifest.json | cut -d ":" -f2)
           echo "ami_id=$AMI_ID" >> $GITHUB_OUTPUT
-        
-      - name: Output AMI ID
-        run: |
-          echo "Built AMI ID: ${{ steps.get-ami-id.outputs.ami_id }}"
 
       - name: Clean up
         if: always()
@@ -95,7 +106,5 @@ jobs:
           cat packer-template/ubuntu-mysql.pkr.hcl
           echo "Variables file contents:"
           cat packer-template/variables.pkrvars.hcl
-          echo "install_webapp.sh contents:"
-          cat packer-template/install_webapp.sh
-          echo "my-app.service contents:"
-          cat packer-template/my-app.service
+          echo "Environment variables (excluding sensitive data):"
+          env | grep -v -e DB_PASSWORD -e AWS

@@ -32,6 +32,26 @@ variable "subnet_id" {
   default = "subnet-063beaf3ff4e82a4d"
 }
 
+variable "db_host" {
+  type = string
+}
+
+variable "db_user" {
+  type = string
+}
+
+variable "db_password" {
+  type = string
+}
+
+variable "db_name" {
+  type = string
+}
+
+variable "db_port" {
+  type = string
+}
+
 source "amazon-ebs" "my-ubuntu-image" {
   region          = var.aws_region
   instance_type   = var.instance_type
@@ -85,18 +105,28 @@ build {
   }
 
   provisioner "shell" {
+    environment_vars = [
+      "DB_HOST=${var.db_host}",
+      "DB_USER=${var.db_user}",
+      "DB_PASSWORD=${var.db_password}",
+      "DB_NAME=${var.db_name}",
+      "DB_PORT=${var.db_port}"
+    ]
     inline = [
-      "sudo mkdir -p /opt",
       "sudo mv /tmp/webapp.zip /opt/webapp.zip",
       "sudo chmod 644 /opt/webapp.zip",
-      "sudo mv /tmp/my-app.service /etc/systemd/system/my-app.service",
-      "sudo chmod 644 /etc/systemd/system/my-app.service",
+      "sudo mv /tmp/my-app.service /opt/my-app.service",
+      "sudo chmod 644 /opt/my-app.service",
       "chmod +x /tmp/install_webapp.sh",
       "sudo -E /tmp/install_webapp.sh",
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable my-app.service",
-      "sudo systemctl start my-app.service",
-      "sudo systemctl status my-app.service"
+      "sudo tee /etc/profile.d/myapp_env.sh > /dev/null <<EOT",
+      "export DB_HOST='${var.db_host}'",
+      "export DB_USER='${var.db_user}'",
+      "export DB_PASSWORD='${var.db_password}'",
+      "export DB_NAME='${var.db_name}'",
+      "export DB_PORT='${var.db_port}'",
+      "EOT",
+      "sudo chmod 644 /etc/profile.d/myapp_env.sh"
     ]
   }
 }
