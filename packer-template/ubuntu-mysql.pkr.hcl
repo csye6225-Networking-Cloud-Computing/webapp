@@ -63,6 +63,7 @@ source "amazon-ebs" "my-ubuntu-image" {
 build {
   sources = ["source.amazon-ebs.my-ubuntu-image"]
 
+  # Copy necessary files to the instance
   provisioner "file" {
     source      = "${path.root}/webapp.zip"
     destination = "/tmp/webapp.zip"
@@ -78,33 +79,30 @@ build {
     destination = "/tmp/install_webapp.sh"
   }
 
+  # Install unzip, move files, and run the installation script
   provisioner "shell" {
     inline = [
-      "if command -v git >/dev/null 2>&1; then echo 'Git is installed, removing it...'; sudo apt-get remove --purge -y git; else echo 'Git is NOT installed'; fi"
-    ]
-  }
-
-  provisioner "shell" {
-    inline = [
-      "sudo mkdir -p /opt",
-      "sudo mv /tmp/webapp.zip /opt/webapp.zip",
+      "if command -v git >/dev/null 2>&1; then echo 'Git is installed, removing it...'; sudo apt-get remove --purge -y git; else echo 'Git is NOT installed'; fi",
+      "sudo mkdir -p /opt",  # Ensure the /opt directory exists
+      "sudo mv /tmp/webapp.zip /opt/webapp.zip",  # Move the zip file to /opt
       "sudo chmod 644 /opt/webapp.zip",
-      "sudo apt-get update",
-      "sudo apt-get install -y unzip", # Install unzip utility
-      "sudo unzip /opt/webapp.zip -d /opt/webapp",
-      "sudo mv /tmp/my-app.service /etc/systemd/system/my-app.service",
-      "sudo chmod 644 /etc/systemd/system/my-app.service",
-      "chmod +x /tmp/install_webapp.sh",
-      "sudo /tmp/install_webapp.sh"
+      "sudo apt-get update",  # Ensure package lists are updated
+      "sudo apt-get install -y unzip",  # Install unzip utility
+      "sudo unzip -o /opt/webapp.zip -d /opt/webapp",  # Unzip the webapp to /opt/webapp
+      "sudo mv /tmp/my-app.service /etc/systemd/system/my-app.service",  # Move systemd service file
+      "sudo chmod 644 /etc/systemd/system/my-app.service",  # Ensure correct permissions
+      "chmod +x /tmp/install_webapp.sh",  # Make the install script executable
+      "sudo /tmp/install_webapp.sh"  # Run the installation script
     ]
   }
 
+  # Enable and start the systemd service
   provisioner "shell" {
     inline = [
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable my-app.service",
-      "sudo systemctl start my-app.service",
-      "sudo systemctl status my-app.service"
+      "sudo systemctl daemon-reload",  # Reload systemd configuration
+      "sudo systemctl enable my-app.service",  # Enable the service to start on boot
+      "sudo systemctl start my-app.service",  # Start the service
+      "sudo systemctl status my-app.service"  # Check the service status
     ]
   }
 }
