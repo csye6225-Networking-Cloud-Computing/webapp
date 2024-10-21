@@ -9,7 +9,7 @@ debug_log() {
 
 debug_log "Starting installation script"
 
-# Update package lists and install dependencies (no local MySQL)
+# Update package lists and install dependencies
 debug_log "Updating packages and installing dependencies..."
 sudo apt-get update
 sudo apt-get install -y nodejs npm unzip
@@ -51,7 +51,7 @@ export DB_PASSWORD='${DB_PASSWORD}'
 export DB_NAME='${DB_NAME}'
 export DB_PORT='${DB_PORT}'
 EOT
-sudo chmod 600 /etc/profile.d/myapp_env.sh
+sudo chmod 644 /etc/profile.d/myapp_env.sh
 
 # Set up systemd service
 debug_log "Setting up systemd service..."
