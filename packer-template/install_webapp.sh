@@ -22,18 +22,12 @@ cd /opt/webapp
 
 # Install Node.js dependencies
 debug_log "Installing Node.js dependencies..."
-sudo npm install 2>&1 | tee /tmp/npm-install.log || { debug_log "Failed to install Node.js dependencies, check /tmp/npm-install.log"; exit 1; }
+sudo npm install || { debug_log "Failed to install Node.js dependencies"; exit 1; }
 
 # Create a non-privileged user for running the app and set permissions
 debug_log "Creating user 'csye6225' and setting permissions..."
 sudo useradd -r -s /usr/sbin/nologin csye6225 || { debug_log "Failed to create user"; exit 1; }
 sudo chown -R csye6225:csye6225 /opt/webapp || { debug_log "Failed to set permissions on /opt/webapp"; exit 1; }
-
-# Check if my-app.service exists
-if [ ! -f /opt/my-app.service ]; then
-    debug_log "my-app.service not found in /opt"
-    exit 1
-fi
 
 # Set up systemd service to run the app
 debug_log "Setting up systemd service..."
