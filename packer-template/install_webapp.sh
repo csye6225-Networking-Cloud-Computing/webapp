@@ -29,6 +29,12 @@ debug_log "Creating user 'csye6225' and setting permissions..."
 sudo useradd -r -s /usr/sbin/nologin csye6225 || { debug_log "Failed to create user"; exit 1; }
 sudo chown -R csye6225:csye6225 /opt/webapp || { debug_log "Failed to set permissions on /opt/webapp"; exit 1; }
 
+# Check if my-app.service exists
+if [ ! -f /opt/my-app.service ]; then
+    debug_log "my-app.service not found in /opt"
+    exit 1
+fi
+
 # Set up systemd service to run the app
 debug_log "Setting up systemd service..."
 sudo cp /opt/my-app.service /etc/systemd/system/ || { debug_log "Failed to copy systemd service file"; exit 1; }
