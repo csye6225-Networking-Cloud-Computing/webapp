@@ -32,26 +32,6 @@ variable "subnet_id" {
   default = "subnet-063beaf3ff4e82a4d"
 }
 
-variable "db_host" {
-  type = string
-}
-
-variable "db_user" {
-  type = string
-}
-
-variable "db_password" {
-  type = string
-}
-
-variable "db_name" {
-  type = string
-}
-
-variable "db_port" {
-  type = string
-}
-
 source "amazon-ebs" "my-ubuntu-image" {
   region          = var.aws_region
   instance_type   = var.instance_type
@@ -83,6 +63,7 @@ source "amazon-ebs" "my-ubuntu-image" {
 build {
   sources = ["source.amazon-ebs.my-ubuntu-image"]
 
+  # Copy necessary files to the instance
   provisioner "file" {
     source      = "${path.root}/webapp.zip"
     destination = "/tmp/webapp.zip"
@@ -98,35 +79,38 @@ build {
     destination = "/tmp/install_webapp.sh"
   }
 
+  # Remove Git if installed
   provisioner "shell" {
     inline = [
       "if command -v git >/dev/null 2>&1; then echo 'Git is installed, removing it...'; sudo apt-get remove --purge -y git; else echo 'Git is NOT installed'; fi"
     ]
   }
 
+  # Set up webapp and systemd service
   provisioner "shell" {
-    environment_vars = [
-      "DB_HOST=${var.db_host}",
-      "DB_USER=${var.db_user}",
-      "DB_PASSWORD=${var.db_password}",
-      "DB_NAME=${var.db_name}",
-      "DB_PORT=${var.db_port}"
-    ]
     inline = [
+      # Ensure /opt directory exists
+      "sudo mkdir -p /opt",
+      
+      # Move files to appropriate locations
       "sudo mv /tmp/webapp.zip /opt/webapp.zip",
       "sudo chmod 644 /opt/webapp.zip",
-      "sudo mv /tmp/my-app.service /opt/my-app.service",
-      "sudo chmod 644 /opt/my-app.service",
+      "sudo mv /tmp/my-app.service /etc/systemd/system/my-app.service",
+      "sudo chmod 644 /etc/systemd/system/my-app.service",
+      
+      # Make the install script executable
       "chmod +x /tmp/install_webapp.sh",
+      
+      # Run the installation script (with environment variables if needed)
       "sudo -E /tmp/install_webapp.sh",
-      "sudo tee /etc/profile.d/myapp_env.sh > /dev/null <<EOT",
-      "export DB_HOST='${var.db_host}'",
-      "export DB_USER='${var.db_user}'",
-      "export DB_PASSWORD='${var.db_password}'",
-      "export DB_NAME='${var.db_name}'",
-      "export DB_PORT='${var.db_port}'",
-      "EOT",
-      "sudo chmod 644 /etc/profile.d/myapp_env.sh"
+      
+      # Reload and start the systemd service
+      "sudo systemctl daemon-reload",
+      "sudo systemctl enable my-app.service",
+      "sudo systemctl start my-app.service",
+      
+      # Check the service status
+      "sudo systemctl status my-app.service"
     ]
   }
 }
