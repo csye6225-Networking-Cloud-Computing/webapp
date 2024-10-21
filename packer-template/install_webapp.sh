@@ -12,7 +12,7 @@ debug_log "Starting installation script"
 # Update package lists and install dependencies
 debug_log "Updating packages and installing dependencies..."
 sudo apt-get update
-sudo apt-get install -y nodejs npm unzip
+sudo apt-get install -y nodejs npm unzip || { debug_log "Failed to install dependencies"; exit 1; }
 
 # Set up webapp
 debug_log "Setting up webapp..."
@@ -22,16 +22,20 @@ cd /opt/webapp
 
 # Install Node.js dependencies
 debug_log "Installing Node.js dependencies..."
-sudo npm install || { debug_log "Failed to install Node.js dependencies"; exit 1; }
+sudo npm install 2>&1 | tee /tmp/npm-install.log || { debug_log "Failed to install Node.js dependencies, check /tmp/npm-install.log"; exit 1; }
 
 # Create csye6225 user and set permissions
 debug_log "Creating user 'csye6225' and setting permissions..."
 sudo useradd -r -s /usr/sbin/nologin csye6225
-sudo chown -R csye6225:csye6225 /opt/webapp
+sudo chown -R csye6225:csye6225 /opt/webapp || { debug_log "Failed to set permissions on /opt/webapp"; exit 1; }
 
 # Set environment variables for RDS (passed from Terraform)
 debug_log "Setting up environment variables for RDS..."
-sudo mkdir -p /etc/systemd/system/my-app.service.d
+DB_HOST=${DB_HOST:-"localhost"}
+DB_USER=${DB_USER:-"default_user"}
+DB_PASSWORD=${DB_PASSWORD:-"default_password"}
+DB_NAME=${DB_NAME:-"default_db"}
+DB_PORT=${DB_PORT:-3306}
 
 # Pass the RDS connection details to the application using environment variables
 sudo tee /etc/systemd/system/my-app.service.d/override.conf <<EOT
@@ -62,7 +66,7 @@ sudo systemctl start my-app.service || { debug_log "Failed to start my-app servi
 
 # Check service status
 debug_log "Checking my-app service status..."
-sudo systemctl is-active --quiet my-app.service && debug_log "my-app service is running" || { debug_log "my-app service is not running"; exit 1; }
+sudo systemctl is-active --quiet my-app.service && debug_log "my-app service is running" || { debug_log "my-app service is not running"; sudo journalctl -xe | tail -n 50; exit 1; }
 
 # Check Node.js and npm versions
 debug_log "Node.js and npm versions:"
