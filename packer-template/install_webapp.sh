@@ -14,8 +14,8 @@ debug_log "Updating packages and installing dependencies..."
 sudo apt-get update
 sudo apt-get install -y nodejs npm unzip || { debug_log "Failed to install dependencies"; exit 1; }
 
-# Set up webapp
-debug_log "Setting up webapp..."
+# Set up webapp directory
+debug_log "Setting up webapp directory..."
 sudo mkdir -p /opt/webapp
 sudo unzip /opt/webapp.zip -d /opt/webapp || { debug_log "Failed to unzip webapp"; exit 1; }
 cd /opt/webapp
@@ -24,44 +24,16 @@ cd /opt/webapp
 debug_log "Installing Node.js dependencies..."
 sudo npm install 2>&1 | tee /tmp/npm-install.log || { debug_log "Failed to install Node.js dependencies, check /tmp/npm-install.log"; exit 1; }
 
-# Create csye6225 user and set permissions
+# Create a non-privileged user for running the app and set permissions
 debug_log "Creating user 'csye6225' and setting permissions..."
-sudo useradd -r -s /usr/sbin/nologin csye6225
+sudo useradd -r -s /usr/sbin/nologin csye6225 || { debug_log "Failed to create user"; exit 1; }
 sudo chown -R csye6225:csye6225 /opt/webapp || { debug_log "Failed to set permissions on /opt/webapp"; exit 1; }
 
-# Set environment variables for RDS (passed from Terraform)
-debug_log "Setting up environment variables for RDS..."
-DB_HOST=${DB_HOST:-"localhost"}
-DB_USER=${DB_USER:-"default_user"}
-DB_PASSWORD=${DB_PASSWORD:-"default_password"}
-DB_NAME=${DB_NAME:-"default_db"}
-DB_PORT=${DB_PORT:-3306}
-
-# Pass the RDS connection details to the application using environment variables
-sudo tee /etc/systemd/system/my-app.service.d/override.conf <<EOT
-[Service]
-Environment="DB_HOST=${DB_HOST}"
-Environment="DB_USER=${DB_USER}"
-Environment="DB_PASSWORD=${DB_PASSWORD}"
-Environment="DB_NAME=${DB_NAME}"
-Environment="DB_PORT=${DB_PORT}"
-EOT
-
-# Persist environment variables system-wide
-sudo tee /etc/profile.d/myapp_env.sh > /dev/null <<EOT
-export DB_HOST='${DB_HOST}'
-export DB_USER='${DB_USER}'
-export DB_PASSWORD='${DB_PASSWORD}'
-export DB_NAME='${DB_NAME}'
-export DB_PORT='${DB_PORT}'
-EOT
-sudo chmod 644 /etc/profile.d/myapp_env.sh
-
-# Set up systemd service
+# Set up systemd service to run the app
 debug_log "Setting up systemd service..."
-sudo cp /opt/my-app.service /etc/systemd/system/
+sudo cp /opt/my-app.service /etc/systemd/system/ || { debug_log "Failed to copy systemd service file"; exit 1; }
 sudo systemctl daemon-reload
-sudo systemctl enable my-app.service
+sudo systemctl enable my-app.service || { debug_log "Failed to enable my-app service"; exit 1; }
 sudo systemctl start my-app.service || { debug_log "Failed to start my-app service"; exit 1; }
 
 # Check service status
