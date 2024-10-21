@@ -88,29 +88,24 @@ build {
 
   # Set up webapp and systemd service
   provisioner "shell" {
-    inline = [
-      # Ensure /opt directory exists
-      "sudo mkdir -p /opt",
-      
-      # Move files to appropriate locations
-      "sudo mv /tmp/webapp.zip /opt/webapp.zip",
-      "sudo chmod 644 /opt/webapp.zip",
-      "sudo mv /tmp/my-app.service /etc/systemd/system/my-app.service",
-      "sudo chmod 644 /etc/systemd/system/my-app.service",
-      
-      # Make the install script executable
-      "chmod +x /tmp/install_webapp.sh",
-      
-      # Run the installation script (with environment variables if needed)
-      "sudo -E /tmp/install_webapp.sh",
-      
-      # Reload and start the systemd service
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable my-app.service",
-      "sudo systemctl start my-app.service",
-      
-      # Check the service status
-      "sudo systemctl status my-app.service"
-    ]
-  }
+  inline = [
+    # Ensure /opt directory exists
+    "sudo mkdir -p /opt",
+    # Move files to appropriate locations
+    "sudo mv /tmp/webapp.zip /opt/webapp.zip",
+    "sudo chmod 644 /opt/webapp.zip",
+    "sudo mv /tmp/my-app.service /etc/systemd/system/my-app.service",
+    "sudo chmod 644 /etc/systemd/system/my-app.service",
+    # Make the install script executable
+    "chmod +x /tmp/install_webapp.sh",
+    # Run the installation script (with environment variables if needed)
+    "sudo -E /tmp/install_webapp.sh",
+    # Reload and start the systemd service
+    "sudo systemctl daemon-reload",
+    "sudo systemctl enable my-app.service",
+    "sudo systemctl start my-app.service",
+    # Check the service status
+    "sudo systemctl status my-app.service"
+  ]
+}
 }
