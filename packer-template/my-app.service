@@ -6,20 +6,15 @@ After=network.target
 User=csye6225
 Group=csye6225
 WorkingDirectory=/opt/webapp
-ExecStart=/usr/bin/env node /opt/webapp/app.js
+ExecStart=/usr/bin/node /opt/webapp/app.js
 Restart=always
 RestartSec=10
-StandardOutput=journal+console
-StandardError=journal+console
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=nodejs-app
 EnvironmentFile=/etc/environment
-EnvironmentFile=-/etc/opt/myapp.env
 Environment=NODE_ENV=production
 Environment=PORT=8080
-Nice=5
-NoNewPrivileges=true
-ProtectSystem=full
-PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
