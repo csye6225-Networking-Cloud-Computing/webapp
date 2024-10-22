@@ -5,20 +5,14 @@ After=network.target
 [Service]
 User=csye6225
 Group=csye6225
-
 WorkingDirectory=/opt/webapp
 ExecStart=/usr/bin/node /opt/webapp/app.js
-
 Restart=always
 RestartSec=10
-
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=nodejs-app
-
-# EnvironmentFile points to the override.conf created during the install script
-EnvironmentFile=/etc/systemd/system/my-app.service.d/override.conf
-
+EnvironmentFile=/etc/environment
 Environment=NODE_ENV=production
 Environment=PORT=8080
 
