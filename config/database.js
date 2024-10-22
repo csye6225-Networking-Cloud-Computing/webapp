@@ -4,7 +4,18 @@ const dotenv = require('dotenv');
 // Load environment variables from .env file
 dotenv.config();
 
-// Check if environment variables are properly loaded
+// Set default environment to development if not specified
+const environment = process.env.NODE_ENV || 'development';
+console.log(`Running in environment: ${environment}`);
+
+// Skip the database connection if SKIP_DB is set or if running in ami_build environment
+if (process.env.SKIP_DB || environment === 'ami_build') {
+  console.log('Skipping database connection.');
+  module.exports = { sequelize: null }; // Handle skipped connection gracefully
+  return;
+}
+
+// Proceed with normal database connection for other environments
 if (!process.env.DB_NAME || !process.env.DB_USER || !process.env.DB_HOST || process.env.DB_PASSWORD === undefined) {
   console.error('Database connection details are missing. Please check your environment variables.');
   process.exit(1); // Exit the process if essential variables are missing
@@ -17,15 +28,11 @@ console.log(`Connecting to database:
   DB_NAME: ${process.env.DB_NAME},
   DB_PORT: ${process.env.DB_PORT || '3306'}`);
 
-// Handle the case where DB_PASSWORD is "EMPTY" (set in GitHub Secrets) or undefined
-const dbPassword = process.env.DB_PASSWORD === 'EMPTY' ? '' : process.env.DB_PASSWORD;
-
-
 // Initialize Sequelize instance with MySQL connection
 const sequelize = new Sequelize(
   process.env.DB_NAME,
   process.env.DB_USER,
-  dbPassword, // Use the adjusted password here
+  process.env.DB_PASSWORD, // Use the actual password here
   {
     host: process.env.DB_HOST,
     dialect: 'mysql',
