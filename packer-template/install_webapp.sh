@@ -24,6 +24,13 @@ cd /opt/webapp
 debug_log "Installing Node.js dependencies..."
 sudo npm install
 
+# Check for app.js existence and permissions
+debug_log "Checking if /opt/webapp/app.js exists..."
+if [[ ! -f /opt/webapp/app.js ]]; then
+    debug_log "ERROR: /opt/webapp/app.js not found!"
+    exit 1
+fi
+
 # Create csye6225 user and set permissions
 debug_log "Creating user 'csye6225' and setting permissions..."
 sudo useradd -r -s /usr/sbin/nologin csye6225
@@ -34,15 +41,17 @@ debug_log "Setting up systemd service..."
 sudo cp /opt/my-app.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable my-app.service
+
+# Check systemd service for errors before starting
+debug_log "Checking for any issues with systemd service before starting..."
+sudo systemctl status my-app.service || exit 1
+
+# Start the service
+debug_log "Starting my-app service..."
 sudo systemctl start my-app.service
 
-# Check service status
-debug_log "Checking my-app service status..."
-sudo systemctl status my-app.service
+# Check service status after start
+debug_log "Checking my-app service status after starting..."
+sudo systemctl status my-app.service || exit 1
 
-# Check Node.js and npm versions
-debug_log "Node.js and npm versions:"
-node --version
-npm --version
-
-debug_log "Web application setup complete!"
+debug_log "Installation completed!"
