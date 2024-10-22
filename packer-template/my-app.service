@@ -12,7 +12,9 @@ RestartSec=10
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=nodejs-app
-EnvironmentFile=/etc/environment
+
+# Pass SKIP_DB to skip database connection during AMI build
+Environment=SKIP_DB=true
 Environment=NODE_ENV=production
 Environment=PORT=8080
 

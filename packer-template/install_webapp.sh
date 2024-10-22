@@ -41,6 +41,10 @@ fi
 # Ensure app.js is executable
 sudo chmod +x /opt/webapp/app.js
 
+# Set SKIP_DB environment variable to bypass database connection
+debug_log "Setting SKIP_DB environment variable..."
+export SKIP_DB=true
+
 # Create csye6225 user and set permissions
 debug_log "Creating user 'csye6225' and setting permissions..."
 sudo useradd -r -s /usr/sbin/nologin csye6225
@@ -49,7 +53,7 @@ sudo chmod -R 755 /opt/webapp
 
 # Test running the Node.js application manually
 debug_log "Manually running the Node.js application to verify..."
-sudo -u csye6225 /usr/bin/node /opt/webapp/app.js &
+sudo -u csye6225 SKIP_DB=true /usr/bin/node /opt/webapp/app.js &
 sleep 5
 ps aux | grep app.js
 

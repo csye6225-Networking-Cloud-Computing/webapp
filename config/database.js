@@ -4,7 +4,14 @@ const dotenv = require('dotenv');
 // Load environment variables from .env file
 dotenv.config();
 
-// Check if environment variables are properly loaded
+// Check if SKIP_DB is set, if true, skip the database connection
+if (process.env.SKIP_DB) {
+  console.log('Skipping database connection as SKIP_DB is set.');
+  module.exports = { sequelize: null }; // Return a null sequelize instance or handle accordingly
+  return;
+}
+
+// Check if essential environment variables are properly loaded
 if (!process.env.DB_NAME || !process.env.DB_USER || !process.env.DB_HOST || process.env.DB_PASSWORD === undefined) {
   console.error('Database connection details are missing. Please check your environment variables.');
   process.exit(1); // Exit the process if essential variables are missing
@@ -19,7 +26,6 @@ console.log(`Connecting to database:
 
 // Handle the case where DB_PASSWORD is "EMPTY" (set in GitHub Secrets) or undefined
 const dbPassword = process.env.DB_PASSWORD === 'EMPTY' ? '' : process.env.DB_PASSWORD;
-
 
 // Initialize Sequelize instance with MySQL connection
 const sequelize = new Sequelize(
