@@ -1,8 +1,8 @@
 const { Sequelize } = require('sequelize');
-const dotenv = require('dotenv');
+//const dotenv = require('dotenv');
 
 // Load environment variables from .env file
-dotenv.config();
+//dotenv.config();
 
 // Check if environment variables are properly loaded
 if (!process.env.DB_NAME || !process.env.DB_USER || !process.env.DB_HOST || process.env.DB_PASSWORD === undefined) {
