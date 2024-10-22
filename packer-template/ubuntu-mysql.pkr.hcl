@@ -14,7 +14,7 @@ variable "aws_region" {
 
 variable "source_ami" {
   type    = string
-  default = "ami-0866a3c8686eaeeba"
+  default = "ami-0866a3c8686eaeeba" # Replace with your base AMI
 }
 
 variable "instance_type" {
@@ -80,26 +80,12 @@ build {
 
   provisioner "shell" {
     inline = [
-      "if command -v git >/dev/null 2>&1; then echo 'Git is installed, removing it...'; sudo apt-get remove --purge -y git; else echo 'Git is NOT installed'; fi",
-      "sudo mkdir -p /opt",
       "sudo mv /tmp/webapp.zip /opt/webapp.zip",
       "sudo chmod 644 /opt/webapp.zip",
-      "sudo apt-get update",
-      "sudo apt-get install -y unzip",
-      "sudo unzip -o /opt/webapp.zip -d /opt/webapp",
-      "sudo mv /tmp/my-app.service /etc/systemd/system/my-app.service",
-      "sudo chmod 644 /etc/systemd/system/my-app.service",
+      "sudo mv /tmp/my-app.service /opt/my-app.service",
+      "sudo chmod 644 /opt/my-app.service",
       "chmod +x /tmp/install_webapp.sh",
-      "sudo /tmp/install_webapp.sh"
-    ]
-  }
-
-  provisioner "shell" {
-    inline = [
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable my-app.service",
-      "sudo systemctl start my-app.service",
-      "sudo systemctl status my-app.service"
+      "sudo -E /tmp/install_webapp.sh"
     ]
   }
 }
