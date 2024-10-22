@@ -16,7 +16,7 @@ sudo apt-get install -y nodejs npm unzip
 
 # Check if Node.js is installed
 debug_log "Checking if Node.js is installed..."
-if [[ ! -f /usr/bin/node ]]; then
+if [ ! -f /usr/bin/node ]; then
     debug_log "ERROR: Node.js not found!"
     exit 1
 fi
@@ -33,7 +33,7 @@ sudo npm install
 
 # Check if app.js exists
 debug_log "Checking if /opt/webapp/app.js exists..."
-if [[ ! -f /opt/webapp/app.js ]]; then
+if [ ! -f /opt/webapp/app.js ]; then
     debug_log "ERROR: /opt/webapp/app.js not found!"
     exit 1
 fi
@@ -49,9 +49,8 @@ sudo chmod -R 755 /opt/webapp
 
 # Test running the Node.js application manually
 debug_log "Manually running the Node.js application to verify..."
-#sudo -u csye6225 /usr/bin/node /opt/webapp/app.js &
 sleep 5
-ps aux | grep app.js
+ps aux | grep app.js || debug_log "WARNING: app.js not running."
 
 # Set up systemd service
 debug_log "Setting up systemd service..."
@@ -61,7 +60,10 @@ sudo systemctl enable my-app.service
 
 # Check for any issues with systemd service before starting
 debug_log "Checking for any issues with systemd service before starting..."
-sudo systemctl status my-app.service || exit 1
+sudo systemctl status my-app.service || {
+    debug_log "ERROR: Issue found with systemd service!";
+    exit 1
+}
 
 # Start the service
 debug_log "Starting my-app service..."
@@ -69,6 +71,9 @@ sudo systemctl start my-app.service
 
 # Check service status after start
 debug_log "Checking my-app service status after starting..."
-sudo systemctl status my-app.service || exit 1
+sudo systemctl status my-app.service || {
+    debug_log "ERROR: my-app service failed to start!";
+    exit 1
+}
 
 debug_log "Installation completed!"
