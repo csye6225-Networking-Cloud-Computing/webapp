@@ -80,12 +80,26 @@ build {
 
   provisioner "shell" {
     inline = [
-      "sudo mv /tmp/webapp.zip /opt/webapp.zip",
-      "sudo chmod 644 /opt/webapp.zip",
-      "sudo mv /tmp/my-app.service /opt/my-app.service",
-      "sudo chmod 644 /opt/my-app.service",
-      "chmod +x /tmp/install_webapp.sh",
-      "sudo -E /tmp/install_webapp.sh"
+      "sudo apt-get clean",
+      "sudo rm -rf /var/lib/apt/lists/*",
+      "sudo sed -i 's|http://us-east-1.ec2.archive.ubuntu.com/ubuntu/|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list",
+      "sudo apt-get update || (sleep 30 && sudo apt-get update)",
+      "sudo apt-get install -y nodejs npm unzip",
+      "if [[ ! -f /usr/bin/node ]]; then echo 'ERROR: Node.js not found!' && exit 1; fi",
+      "sudo mkdir -p /opt/webapp",
+      "sudo unzip /tmp/webapp.zip -d /opt/webapp",
+      "cd /opt/webapp",
+      "sudo npm install",
+      "if [[ ! -f /opt/webapp/app.js ]]; then echo 'ERROR: /opt/webapp/app.js not found!' && exit 1; fi",
+      "sudo chmod +x /opt/webapp/app.js",
+      "sudo useradd -r -s /usr/sbin/nologin csye6225",
+      "sudo chown -R csye6225:csye6225 /opt/webapp",
+      "sudo chmod -R 755 /opt/webapp",
+      "sudo cp /tmp/my-app.service /etc/systemd/system/",
+      "sudo systemctl daemon-reload",
+      "sudo systemctl enable my-app.service",
+      "sudo systemctl start my-app.service",
+      "sudo systemctl status my-app.service || exit 1"
     ]
   }
 }
