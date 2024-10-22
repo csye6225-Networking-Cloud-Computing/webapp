@@ -49,7 +49,7 @@ sudo chmod -R 755 /opt/webapp
 
 # Test running the Node.js application manually
 debug_log "Manually running the Node.js application to verify..."
-sudo -u csye6225 /usr/bin/node /opt/webapp/app.js &
+#sudo -u csye6225 /usr/bin/node /opt/webapp/app.js &
 sleep 5
 ps aux | grep app.js
 
