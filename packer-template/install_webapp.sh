@@ -14,12 +14,10 @@ debug_log "Updating packages and installing dependencies..."
 sudo apt-get update
 sudo apt-get install -y nodejs npm unzip
 
-# Check if Node.js is installed
-debug_log "Checking if Node.js is installed..."
-if [ ! -f /usr/bin/node ]; then
-    debug_log "ERROR: Node.js not found!"
-    exit 1
-fi
+# Install CloudWatch Agent
+debug_log "Installing CloudWatch Agent..."
+curl -s https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
+sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
 
 # Set up webapp
 debug_log "Setting up webapp..."
@@ -75,5 +73,50 @@ sudo systemctl status my-app.service || {
     debug_log "ERROR: my-app service failed to start!";
     exit 1
 }
+
+# Upload CloudWatch Agent configuration
+debug_log "Uploading CloudWatch Agent configuration..."
+cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root"
+  },
+  "metrics": {
+    "append_dimensions": {
+      "InstanceId": "$${aws:InstanceId}"
+    },
+    "aggregation_dimensions": [["InstanceId"]],
+    "metrics_collected": {
+      "mem": {
+        "measurement": ["mem_used_percent"],
+        "metrics_collection_interval": 60
+      },
+      "cpu": {
+        "measurement": ["cpu_usage_active"],
+        "metrics_collection_interval": 60
+      }
+    }
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/syslog",
+            "log_group_name": "/aws/ec2/syslog",
+            "log_stream_name": "{instance_id}",
+            "timestamp_format": "%b %d %H:%M:%S"
+          }
+        ]
+      }
+    }
+  }
+}
+EOF
+
+# Enable and start CloudWatch Agent
+debug_log "Configuring and starting CloudWatch Agent..."
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
 debug_log "Installation completed!"
