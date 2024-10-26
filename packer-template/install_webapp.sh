@@ -30,6 +30,7 @@ cd /opt/webapp
 # Install Node.js dependencies
 debug_log "Installing Node.js dependencies..."
 sudo npm install
+sudo npm install aws-sdk winston winston-cloudwatch
 
 # Check if app.js exists
 debug_log "Checking if /opt/webapp/app.js exists..."
@@ -75,5 +76,36 @@ sudo systemctl status my-app.service || {
     debug_log "ERROR: my-app service failed to start!";
     exit 1
 }
+
+# CloudWatch Log Configuration
+debug_log "Configuring CloudWatch logging in app.js..."
+cat <<EOF >> /opt/webapp/app.js
+const AWS = require('aws-sdk');
+const winston = require('winston');
+require('winston-cloudwatch');
+
+// Configure CloudWatch
+const cloudwatchConfig = {
+    logGroupName: 'my-app-logs', // Change this to your log group name
+    logStreamName: 'my-app-stream', // Change this to your log stream name
+    createLogGroup: true,
+    createLogStream: true,
+    awsRegion: 'us-east-1' // Change to your AWS region
+};
+
+// Create logger
+const logger = winston.createLogger({
+    format: winston.format.json(),
+    transports: [
+        new winston.transports.Console(),
+        new winstonCloudWatch(cloudwatchConfig)
+    ]
+});
+
+// Example log
+logger.info('Application has started');
+
+// Replace console.log with logger.info or logger.error in your application
+EOF
 
 debug_log "Installation completed!"
