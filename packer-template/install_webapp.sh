@@ -53,6 +53,47 @@ debug_log "Manually running the Node.js application to verify..."
 sleep 5
 ps aux | grep app.js || debug_log "WARNING: app.js not running."
 
+# Install CloudWatch Agent
+debug_log "Installing CloudWatch Agent..."
+sudo apt-get install -y amazon-cloudwatch-agent
+
+# Configure CloudWatch Agent
+debug_log "Configuring CloudWatch Agent..."
+sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<EOT
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "logfile": "/var/log/amazon-cloudwatch-agent.log"
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/messages",
+            "log_group_name": "webapp-log-group",
+            "log_stream_name": "{instance_id}"
+          }
+        ]
+      }
+    }
+  },
+  "metrics": {
+    "namespace": "webapp-metrics",
+    "metrics_collected": {
+      "mem": {
+        "measurement": ["mem_used_percent"],
+        "metrics_collection_interval": 60
+      }
+    }
+  }
+}
+EOT
+
+# Start CloudWatch Agent
+debug_log "Starting CloudWatch Agent..."
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+
 # Set up systemd service
 debug_log "Setting up systemd service..."
 sudo cp /opt/my-app.service /etc/systemd/system/
