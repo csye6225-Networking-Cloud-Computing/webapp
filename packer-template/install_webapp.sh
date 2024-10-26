@@ -76,13 +76,14 @@ sudo systemctl status my-app.service || {
     exit 1
 }
 
-# CloudWatch Agent Installation and Configuration
+# Install CloudWatch Agent
 debug_log "Installing CloudWatch Agent..."
 curl -s https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
 sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
 
-# Create CloudWatch Agent Configuration
-debug_log "Creating CloudWatch Agent configuration..."
+# Configure CloudWatch Agent
+debug_log "Configuring CloudWatch Agent..."
+sudo mkdir -p /opt/aws/amazon-cloudwatch-agent/etc/
 cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 {
   "agent": {
@@ -91,7 +92,7 @@ cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agen
   },
   "metrics": {
     "append_dimensions": {
-      "InstanceId": "\${aws:InstanceId}"
+      "InstanceId": "$${aws:InstanceId}"
     },
     "aggregation_dimensions": [["InstanceId"]],
     "metrics_collected": {
