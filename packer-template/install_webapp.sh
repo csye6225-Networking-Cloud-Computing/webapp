@@ -2,88 +2,57 @@
 set -e
 set -x
 
-# Function to log debug information
-debug_log() {
-    echo "[DEBUG] $1" >&2
-}
+# Clean apt cache and update sources
+sudo apt-get clean
+sudo rm -rf /var/lib/apt/lists/*
+sudo sed -i 's|http://us-east-1.ec2.archive.ubuntu.com/ubuntu/|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list
+sudo apt-get update || (sleep 30 && sudo apt-get update)
 
-debug_log "Starting installation script"
-
-# Update package lists and install dependencies (Node.js and npm)
-debug_log "Updating packages and installing dependencies..."
-sudo apt-get update
+# Install Node.js, npm, and unzip
 sudo apt-get install -y nodejs npm unzip
 
-# Check if Node.js is installed
-debug_log "Checking if Node.js is installed..."
-if [ ! -f /usr/bin/node ]; then
-    debug_log "ERROR: Node.js not found!"
-    exit 1
+# Verify Node.js installation
+if [[ ! -f /usr/bin/node ]]; then 
+  echo 'ERROR: Node.js not found!' 
+  exit 1
 fi
 
-# Set up webapp
-debug_log "Setting up webapp..."
+# Set up the web application
 sudo mkdir -p /opt/webapp
 sudo unzip /tmp/webapp.zip -d /opt/webapp
 cd /opt/webapp
-
-# Install Node.js dependencies
-debug_log "Installing Node.js dependencies..."
 sudo npm install
 
 # Check if app.js exists
-debug_log "Checking if /opt/webapp/app.js exists..."
-if [ ! -f /opt/webapp/app.js ]; then
-    debug_log "ERROR: /opt/webapp/app.js not found!"
-    exit 1
+if [[ ! -f /opt/webapp/app.js ]]; then 
+  echo 'ERROR: /opt/webapp/app.js not found!' 
+  exit 1
 fi
 
 # Ensure app.js is executable
 sudo chmod +x /opt/webapp/app.js
 
-# Create csye6225 user and set permissions
-debug_log "Creating user 'csye6225' and setting permissions..."
+# Create user and set permissions
 sudo useradd -r -s /usr/sbin/nologin csye6225
 sudo chown -R csye6225:csye6225 /opt/webapp
 sudo chmod -R 755 /opt/webapp
 
-# Test running the Node.js application manually
-debug_log "Manually running the Node.js application to verify..."
-sleep 5
-ps aux | grep app.js || debug_log "WARNING: app.js not running."
-
-# Set up systemd service
-debug_log "Setting up systemd service..."
+# Configure and start systemd service
 sudo cp /tmp/my-app.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable my-app.service
-
-# Check for any issues with systemd service before starting
-debug_log "Checking for any issues with systemd service before starting..."
-sudo systemctl status my-app.service || {
-    debug_log "ERROR: Issue found with systemd service!";
-    exit 1
-}
-
-# Start the service
-debug_log "Starting my-app service..."
 sudo systemctl start my-app.service
 
-# Check service status after start
-debug_log "Checking my-app service status after starting..."
-sudo systemctl status my-app.service || {
-    debug_log "ERROR: my-app service failed to start!";
-    exit 1
-}
+# Verify service status
+sudo systemctl status my-app.service || exit 1
 
 # Install CloudWatch Agent
-debug_log "Installing CloudWatch Agent..."
+echo "Installing CloudWatch Agent..."
 curl -s https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
 sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
 
 # Configure CloudWatch Agent
-debug_log "Configuring CloudWatch Agent..."
-sudo mkdir -p /opt/aws/amazon-cloudwatch-agent/etc/
+echo "Configuring CloudWatch Agent..."
 cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 {
   "agent": {
@@ -124,7 +93,7 @@ cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agen
 EOF
 
 # Start CloudWatch Agent
-debug_log "Starting CloudWatch Agent..."
+echo "Starting CloudWatch Agent..."
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
-debug_log "Installation completed!"
+echo "Installation completed!"
