@@ -24,7 +24,7 @@ fi
 # Set up webapp
 debug_log "Setting up webapp..."
 sudo mkdir -p /opt/webapp
-sudo unzip /opt/webapp.zip -d /opt/webapp
+sudo unzip /tmp/webapp.zip -d /opt/webapp
 cd /opt/webapp
 
 # Install Node.js dependencies
@@ -54,7 +54,7 @@ ps aux | grep app.js || debug_log "WARNING: app.js not running."
 
 # Set up systemd service
 debug_log "Setting up systemd service..."
-sudo cp /opt/my-app.service /etc/systemd/system/
+sudo cp /tmp/my-app.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable my-app.service
 
@@ -75,5 +75,55 @@ sudo systemctl status my-app.service || {
     debug_log "ERROR: my-app service failed to start!";
     exit 1
 }
+
+# CloudWatch Agent Installation and Configuration
+debug_log "Installing CloudWatch Agent..."
+curl -s https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
+sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
+
+# Create CloudWatch Agent Configuration
+debug_log "Creating CloudWatch Agent configuration..."
+cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root"
+  },
+  "metrics": {
+    "append_dimensions": {
+      "InstanceId": "\${aws:InstanceId}"
+    },
+    "aggregation_dimensions": [["InstanceId"]],
+    "metrics_collected": {
+      "mem": {
+        "measurement": ["mem_used_percent"],
+        "metrics_collection_interval": 60
+      },
+      "cpu": {
+        "measurement": ["cpu_usage_active"],
+        "metrics_collection_interval": 60
+      }
+    }
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/syslog",
+            "log_group_name": "/aws/ec2/syslog",
+            "log_stream_name": "{instance_id}",
+            "timestamp_format": "%b %d %H:%M:%S"
+          }
+        ]
+      }
+    }
+  }
+}
+EOF
+
+# Start CloudWatch Agent
+debug_log "Starting CloudWatch Agent..."
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
 debug_log "Installation completed!"
