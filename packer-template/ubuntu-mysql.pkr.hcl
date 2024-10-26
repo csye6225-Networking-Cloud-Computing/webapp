@@ -63,6 +63,7 @@ source "amazon-ebs" "my-ubuntu-image" {
 build {
   sources = ["source.amazon-ebs.my-ubuntu-image"]
 
+  # Upload webapp zip, service file, and install script to the instance
   provisioner "file" {
     source      = "${path.root}/webapp.zip"
     destination = "/tmp/webapp.zip"
@@ -78,28 +79,11 @@ build {
     destination = "/tmp/install_webapp.sh"
   }
 
+  # Run install_webapp.sh script
   provisioner "shell" {
     inline = [
-      "sudo apt-get clean",
-      "sudo rm -rf /var/lib/apt/lists/*",
-      "sudo sed -i 's|http://us-east-1.ec2.archive.ubuntu.com/ubuntu/|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list",
-      "sudo apt-get update || (sleep 30 && sudo apt-get update)",
-      "sudo apt-get install -y nodejs npm unzip",
-      "if [[ ! -f /usr/bin/node ]]; then echo 'ERROR: Node.js not found!' && exit 1; fi",
-      "sudo mkdir -p /opt/webapp",
-      "sudo unzip /tmp/webapp.zip -d /opt/webapp",
-      "cd /opt/webapp",
-      "sudo npm install",
-      "if [[ ! -f /opt/webapp/app.js ]]; then echo 'ERROR: /opt/webapp/app.js not found!' && exit 1; fi",
-      "sudo chmod +x /opt/webapp/app.js",
-      "sudo useradd -r -s /usr/sbin/nologin csye6225",
-      "sudo chown -R csye6225:csye6225 /opt/webapp",
-      "sudo chmod -R 755 /opt/webapp",
-      "sudo cp /tmp/my-app.service /etc/systemd/system/",
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable my-app.service",
-      "sudo systemctl start my-app.service",
-      "sudo systemctl status my-app.service || exit 1"
+      "chmod +x /tmp/install_webapp.sh",
+      "sudo /tmp/install_webapp.sh"
     ]
   }
 }

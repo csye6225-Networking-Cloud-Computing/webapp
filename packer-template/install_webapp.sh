@@ -14,15 +14,17 @@ debug_log "Updating packages and installing dependencies..."
 sudo apt-get update
 sudo apt-get install -y nodejs npm unzip
 
-# Install CloudWatch Agent
-debug_log "Installing CloudWatch Agent..."
-curl -s https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
-sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
+# Check if Node.js is installed
+debug_log "Checking if Node.js is installed..."
+if [ ! -f /usr/bin/node ]; then
+    debug_log "ERROR: Node.js not found!"
+    exit 1
+fi
 
 # Set up webapp
 debug_log "Setting up webapp..."
 sudo mkdir -p /opt/webapp
-sudo unzip /opt/webapp.zip -d /opt/webapp
+sudo unzip /tmp/webapp.zip -d /opt/webapp
 cd /opt/webapp
 
 # Install Node.js dependencies
@@ -52,7 +54,7 @@ ps aux | grep app.js || debug_log "WARNING: app.js not running."
 
 # Set up systemd service
 debug_log "Setting up systemd service..."
-sudo cp /opt/my-app.service /etc/systemd/system/
+sudo cp /tmp/my-app.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable my-app.service
 
@@ -74,8 +76,13 @@ sudo systemctl status my-app.service || {
     exit 1
 }
 
-# Upload CloudWatch Agent configuration
-debug_log "Uploading CloudWatch Agent configuration..."
+# CloudWatch Agent Installation and Configuration
+debug_log "Installing CloudWatch Agent..."
+curl -s https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
+sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
+
+# Create CloudWatch Agent Configuration
+debug_log "Creating CloudWatch Agent configuration..."
 cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 {
   "agent": {
@@ -84,7 +91,7 @@ cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agen
   },
   "metrics": {
     "append_dimensions": {
-      "InstanceId": "$${aws:InstanceId}"
+      "InstanceId": "\${aws:InstanceId}"
     },
     "aggregation_dimensions": [["InstanceId"]],
     "metrics_collected": {
@@ -115,8 +122,8 @@ cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agen
 }
 EOF
 
-# Enable and start CloudWatch Agent
-debug_log "Configuring and starting CloudWatch Agent..."
+# Start CloudWatch Agent
+debug_log "Starting CloudWatch Agent..."
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
 debug_log "Installation completed!"
