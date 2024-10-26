@@ -14,12 +14,10 @@ debug_log "Updating packages and installing dependencies..."
 sudo apt-get update
 sudo apt-get install -y nodejs npm unzip
 
-# Check if Node.js is installed
-debug_log "Checking if Node.js is installed..."
-if [ ! -f /usr/bin/node ]; then
-    debug_log "ERROR: Node.js not found!"
-    exit 1
-fi
+# Install CloudWatch Agent
+debug_log "Installing CloudWatch Agent..."
+curl -s https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
+sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
 
 # Set up webapp
 debug_log "Setting up webapp..."
@@ -30,7 +28,6 @@ cd /opt/webapp
 # Install Node.js dependencies
 debug_log "Installing Node.js dependencies..."
 sudo npm install
-sudo npm install aws-sdk winston winston-cloudwatch
 
 # Check if app.js exists
 debug_log "Checking if /opt/webapp/app.js exists..."
@@ -52,47 +49,6 @@ sudo chmod -R 755 /opt/webapp
 debug_log "Manually running the Node.js application to verify..."
 sleep 5
 ps aux | grep app.js || debug_log "WARNING: app.js not running."
-
-# Install CloudWatch Agent
-debug_log "Installing CloudWatch Agent..."
-sudo apt-get install -y amazon-cloudwatch-agent
-
-# Configure CloudWatch Agent
-debug_log "Configuring CloudWatch Agent..."
-sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<EOT
-{
-  "agent": {
-    "metrics_collection_interval": 60,
-    "logfile": "/var/log/amazon-cloudwatch-agent.log"
-  },
-  "logs": {
-    "logs_collected": {
-      "files": {
-        "collect_list": [
-          {
-            "file_path": "/var/log/messages",
-            "log_group_name": "webapp-log-group",
-            "log_stream_name": "{instance_id}"
-          }
-        ]
-      }
-    }
-  },
-  "metrics": {
-    "namespace": "webapp-metrics",
-    "metrics_collected": {
-      "mem": {
-        "measurement": ["mem_used_percent"],
-        "metrics_collection_interval": 60
-      }
-    }
-  }
-}
-EOT
-
-# Start CloudWatch Agent
-debug_log "Starting CloudWatch Agent..."
-sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
 # Set up systemd service
 debug_log "Setting up systemd service..."
@@ -118,35 +74,49 @@ sudo systemctl status my-app.service || {
     exit 1
 }
 
-# CloudWatch Log Configuration
-debug_log "Configuring CloudWatch logging in app.js..."
-cat <<EOF >> /opt/webapp/app.js
-const AWS = require('aws-sdk');
-const winston = require('winston');
-require('winston-cloudwatch');
-
-// Configure CloudWatch
-const cloudwatchConfig = {
-    logGroupName: 'my-app-logs', // Change this to your log group name
-    logStreamName: 'my-app-stream', // Change this to your log stream name
-    createLogGroup: true,
-    createLogStream: true,
-    awsRegion: 'us-east-1' // Change to your AWS region
-};
-
-// Create logger
-const logger = winston.createLogger({
-    format: winston.format.json(),
-    transports: [
-        new winston.transports.Console(),
-        new winstonCloudWatch(cloudwatchConfig)
-    ]
-});
-
-// Example log
-logger.info('Application has started');
-
-// Replace console.log with logger.info or logger.error in your application
+# Upload CloudWatch Agent configuration
+debug_log "Uploading CloudWatch Agent configuration..."
+cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root"
+  },
+  "metrics": {
+    "append_dimensions": {
+      "InstanceId": "$${aws:InstanceId}"
+    },
+    "aggregation_dimensions": [["InstanceId"]],
+    "metrics_collected": {
+      "mem": {
+        "measurement": ["mem_used_percent"],
+        "metrics_collection_interval": 60
+      },
+      "cpu": {
+        "measurement": ["cpu_usage_active"],
+        "metrics_collection_interval": 60
+      }
+    }
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/syslog",
+            "log_group_name": "/aws/ec2/syslog",
+            "log_stream_name": "{instance_id}",
+            "timestamp_format": "%b %d %H:%M:%S"
+          }
+        ]
+      }
+    }
+  }
+}
 EOF
+
+# Enable and start CloudWatch Agent
+debug_log "Configuring and starting CloudWatch Agent..."
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
 debug_log "Installation completed!"
