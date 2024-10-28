@@ -36,7 +36,7 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Add Sequelize sync (bootstrapping logic) to ensure schema is updated
-sequelize.sync({ force: true })
+sequelize.sync({ force: false })
     .then(() => {
         console.log('Database synchronized successfully');
     })
