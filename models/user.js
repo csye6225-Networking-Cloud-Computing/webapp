@@ -3,8 +3,8 @@ const { sequelize } = require('../config/database');
 
 const User = sequelize.define('User', {
   id: {
-    type: DataTypes.UUID, // This will generate a UUID (similar to your varchar(36))
-    defaultValue: DataTypes.UUIDV4, // Automatically generate UUID v4
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
   email: {
@@ -18,6 +18,7 @@ const User = sequelize.define('User', {
   password: {
     type: DataTypes.STRING,
     allowNull: false,
+    writeOnly: true,
   },
   firstName: {
     type: DataTypes.STRING,
@@ -26,12 +27,24 @@ const User = sequelize.define('User', {
   lastName: {
     type: DataTypes.STRING,
     allowNull: false,
-  }
+  },
+  profilePicUrl: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  profilePicKey: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  profilePicMetadata: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
 }, {
-  timestamps: true, // Enable Sequelize's automatic timestamps
-  createdAt: 'account_created', 
+  timestamps: true,
+  createdAt: 'account_created',
   updatedAt: 'account_updated',
-  tableName: 'user', 
+  tableName: 'user',
 });
 
 module.exports = User;
