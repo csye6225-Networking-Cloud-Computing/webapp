@@ -3,7 +3,8 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const healthRoutes = require('./routes/health');
 const userRoutes = require('./routes/user');
-const { sequelize } = require('./config/database'); // Importing the database configuration
+const profilePictureRoutes = require('./routes/profilepicture'); // Import profile picture routes
+const { sequelize } = require('./config/database');
 
 dotenv.config();
 
@@ -31,7 +32,7 @@ const checkDatabaseConnection = async () => {
 // Check database connection on startup and at intervals
 checkDatabaseConnection();
 if (process.env.NODE_ENV !== 'test') {
-setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
+    setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
 }
 
 // Add Sequelize sync (bootstrapping logic) to ensure schema is updated
@@ -86,6 +87,7 @@ app.use(cors());
 // Define routes and add database status middleware
 app.use('/healthz', checkDBStatusMiddleware, healthRoutes);
 app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
+app.use('/v1/user', checkDBStatusMiddleware, profilePictureRoutes); // Mount profile picture routes under /v1/user
 
 // Add a 404 handler for undefined routes
 app.use((req, res) => {
