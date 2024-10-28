@@ -4,12 +4,13 @@ const AWS = require('aws-sdk');
 const multer = require('multer');
 const moment = require('moment-timezone');
 const User = require('../models/user');
+const ProfilePicture = require('../models/profilePicture'); // Import ProfilePicture model
 const authenticate = require('../middleware/authenticate');
 const { sequelize } = require('../config/database');
 
 const router = express.Router();
 const s3 = new AWS.S3({
-  region: process.env.AWS_REGION || 'us-east-1', // Set AWS region, default to us-east-1 if not provided
+  region: process.env.AWS_REGION || 'us-east-1',
 });
 const bucketName = process.env.S3_BUCKET_NAME; // Ensure this is set in your environment
 
@@ -56,40 +57,49 @@ const nameRegex = /^[a-zA-Z0-9]+$/;
 router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('profilePic'), async (req, res) => {
   const userId = req.user.id;
 
-  const fileName = `${Date.now()}-${req.file.originalname}`;
-  const uploadParams = {
-    Bucket: bucketName,
-    Key: `user-profile-pics/${userId}/${fileName}`, // Unique key for each file
-    Body: req.file.buffer,
-    ContentType: req.file.mimetype,
-    Metadata: {
-      userId: String(userId),
-    },
-  };
-
   try {
+    // Check if the user already has a profile picture
+    const existingPicture = await ProfilePicture.findOne({ where: { userId } });
+    if (existingPicture) {
+      // If the user already has a profile picture, return 400 Bad Request
+      return res.status(400).json({ error: 'Profile picture already exists. Delete it before uploading a new one.' });
+    }
+
+    // Generate a unique file name for the S3 object
+    const fileName = `${Date.now()}-${req.file.originalname}`;
+    const uploadParams = {
+      Bucket: bucketName,
+      Key: `user-profile-pics/${userId}/${fileName}`, // Unique key for each file
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+      Metadata: {
+        userId: String(userId),
+      },
+    };
+
     // Upload the file to S3
     const data = await s3.upload(uploadParams).promise();
     const imageUrl = data.Location;
 
-    // Update user with profile picture URL and metadata
-    const user = await User.findByPk(userId);
-    user.profilePicUrl = imageUrl;
-    user.profilePicKey = uploadParams.Key;
-    user.profilePicMetadata = {
-      file_name: req.file.originalname,
-      content_type: req.file.mimetype,
-      upload_date: new Date().toISOString(),
-    };
-    await user.save();
+    // Create a new record in ProfilePicture table
+    const profilePicture = await ProfilePicture.create({
+      userId,
+      url: imageUrl,
+      key: uploadParams.Key,
+      metadata: {
+        file_name: req.file.originalname,
+        content_type: req.file.mimetype,
+        upload_date: new Date().toISOString(),
+      },
+    });
 
     // Return the response in the specified format
     res.status(201).json({
       file_name: req.file.originalname,
-      id: user.id,
+      id: profilePicture.id,
       url: imageUrl,
       upload_date: new Date().toISOString(),
-      user_id: user.id,
+      user_id: userId,
     });
   } catch (error) {
     console.error('Error uploading profile picture:', error);
@@ -100,13 +110,13 @@ router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('p
 // GET /v1/user/self/pic - Retrieve profile picture metadata
 router.get('/self/pic', authenticate, checkDatabaseConnection, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id);
-    if (!user || !user.profilePicUrl) {
+    const profilePicture = await ProfilePicture.findOne({ where: { userId: req.user.id } });
+    if (!profilePicture) {
       return res.status(404).json({ error: 'Profile picture not found' });
     }
     res.status(200).json({
-      profilePicUrl: user.profilePicUrl,
-      profilePicMetadata: user.profilePicMetadata,
+      profilePicUrl: profilePicture.url,
+      profilePicMetadata: profilePicture.metadata,
       message: 'Profile picture metadata retrieved successfully',
     });
   } catch (error) {
@@ -118,24 +128,20 @@ router.get('/self/pic', authenticate, checkDatabaseConnection, async (req, res) 
 // DELETE /v1/user/self/pic - Delete profile picture
 router.delete('/self/pic', authenticate, checkDatabaseConnection, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id);
-    if (!user || !user.profilePicUrl) {
+    const profilePicture = await ProfilePicture.findOne({ where: { userId: req.user.id } });
+    if (!profilePicture) {
       return res.status(404).json({ error: 'Profile picture not found' });
     }
 
-    const fileKey = user.profilePicKey;
     const deleteParams = {
       Bucket: bucketName,
-      Key: fileKey,
+      Key: profilePicture.key,
     };
 
     await s3.deleteObject(deleteParams).promise();
 
-    // Remove the profile picture URL and metadata from user's record
-    user.profilePicUrl = null;
-    user.profilePicKey = null;
-    user.profilePicMetadata = null;
-    await user.save();
+    // Remove the profile picture record from the database
+    await profilePicture.destroy();
 
     res.status(204).end();
   } catch (error) {
@@ -143,8 +149,6 @@ router.delete('/self/pic', authenticate, checkDatabaseConnection, async (req, re
     res.status(500).json({ error: 'Error deleting profile picture' });
   }
 });
-
-// Additional user routes (create, retrieve, update user profile)
 
 // POST /v1/users - Create a new user
 router.post('/', checkDatabaseConnection, async (req, res) => {

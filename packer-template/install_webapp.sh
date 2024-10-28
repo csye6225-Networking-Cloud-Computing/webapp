@@ -51,6 +51,9 @@ echo "Installing CloudWatch Agent..."
 curl -s https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
 sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
 
+# Create CloudWatch Agent config directory if it does not exist
+sudo mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+
 # Configure CloudWatch Agent
 echo "Configuring CloudWatch Agent..."
 cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
@@ -61,7 +64,7 @@ cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agen
   },
   "metrics": {
     "append_dimensions": {
-      "InstanceId": "$${aws:InstanceId}"
+      "InstanceId": "\${aws:InstanceId}"
     },
     "aggregation_dimensions": [["InstanceId"]],
     "metrics_collected": {
@@ -84,6 +87,12 @@ cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agen
             "log_group_name": "/aws/ec2/syslog",
             "log_stream_name": "{instance_id}",
             "timestamp_format": "%b %d %H:%M:%S"
+          },
+          {
+            "file_path": "/opt/webapp/logs/app.log",   # Example log file for application logs
+            "log_group_name": "/aws/ec2/app-logs",
+            "log_stream_name": "{instance_id}",
+            "timestamp_format": "%Y-%m-%d %H:%M:%S"
           }
         ]
       }
@@ -95,5 +104,8 @@ EOF
 # Start CloudWatch Agent
 echo "Starting CloudWatch Agent..."
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+
+# Verify CloudWatch Agent status
+sudo systemctl status amazon-cloudwatch-agent || exit 1
 
 echo "Installation completed!"
