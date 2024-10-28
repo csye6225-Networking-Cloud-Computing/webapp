@@ -3,7 +3,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const healthRoutes = require('./routes/health');
 const userRoutes = require('./routes/user');
-const { sequelize } = require('./config/database'); // Importing the database configuration
+const { sequelize } = require('./config/database');
 
 dotenv.config();
 
@@ -31,11 +31,11 @@ const checkDatabaseConnection = async () => {
 // Check database connection on startup and at intervals
 checkDatabaseConnection();
 if (process.env.NODE_ENV !== 'test') {
-setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
+    setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
 }
 
 // Add Sequelize sync (bootstrapping logic) to ensure schema is updated
-sequelize.sync({ force: true })
+sequelize.sync({ force: false })
     .then(() => {
         console.log('Database synchronized successfully');
     })
@@ -76,6 +76,17 @@ unsupportedMethods.forEach((method) => {
 unsupportedMethods.forEach((method) => {
     app[method.toLowerCase()]('/healthz', checkDBStatusMiddleware, (req, res) => {
         res.set('Allow', 'GET');  // Specify the allowed method for healthz
+        return res.status(405).end();  // Return 405 Method Not Allowed
+    });
+});
+
+// Handle unsupported methods (OPTIONS, HEAD, PATCH, PUT) explicitly for /v1/user/self/pic
+const unsupportedMethodsForPic = ['OPTIONS', 'HEAD', 'PATCH', 'PUT'];
+
+// For the /v1/user/self/pic route
+unsupportedMethodsForPic.forEach((method) => {
+    app[method.toLowerCase()]('/v1/user/self/pic', checkDBStatusMiddleware, (req, res) => {
+        res.set('Allow', 'GET, POST, DELETE');  // Specify the allowed methods for /self/pic
         return res.status(405).end();  // Return 405 Method Not Allowed
     });
 });
