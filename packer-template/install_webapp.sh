@@ -32,18 +32,22 @@ fi
 # Ensure app.js is executable
 sudo chmod +x /opt/webapp/app.js
 
-# Create logs directory and log file for application logging
+# Create the csye6225 user if not exists, for non-root ownership and permissions
+if ! id -u csye6225 &>/dev/null; then
+  sudo useradd -r -s /usr/sbin/nologin csye6225
+fi
+
+# Set up logs directory and app.log with appropriate ownership and permissions
 sudo mkdir -p /opt/webapp/logs
 sudo touch /opt/webapp/logs/app.log
-sudo chown csye6225:csye6225 /opt/webapp/logs/app.log  # Set ownership if using specific user
-sudo chmod 664 /opt/webapp/logs/app.log  # Ensure read-write permissions for the owner and group
+sudo chown csye6225:csye6225 /opt/webapp/logs/app.log
+sudo chmod 664 /opt/webapp/logs/app.log  # Read-write for owner and group
 
-# Create user and set permissions
-sudo useradd -r -s /usr/sbin/nologin csye6225
+# Set ownership and permissions for web application directory
 sudo chown -R csye6225:csye6225 /opt/webapp
 sudo chmod -R 755 /opt/webapp
 
-# Configure and start systemd service
+# Configure and start systemd service for the web application
 sudo cp /tmp/my-app.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable my-app.service
