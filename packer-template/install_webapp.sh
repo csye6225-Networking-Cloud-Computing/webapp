@@ -32,6 +32,12 @@ fi
 # Ensure app.js is executable
 sudo chmod +x /opt/webapp/app.js
 
+# Create logs directory and log file for application logging
+sudo mkdir -p /opt/webapp/logs
+sudo touch /opt/webapp/logs/app.log
+sudo chown csye6225:csye6225 /opt/webapp/logs/app.log  # Set ownership if using specific user
+sudo chmod 664 /opt/webapp/logs/app.log  # Ensure read-write permissions for the owner and group
+
 # Create user and set permissions
 sudo useradd -r -s /usr/sbin/nologin csye6225
 sudo chown -R csye6225:csye6225 /opt/webapp
@@ -89,7 +95,7 @@ cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agen
             "timestamp_format": "%b %d %H:%M:%S"
           },
           {
-            "file_path": "/opt/webapp/logs/app.log",   # Example log file for application logs
+            "file_path": "/opt/webapp/logs/app.log",
             "log_group_name": "/aws/ec2/app-logs",
             "log_stream_name": "{instance_id}",
             "timestamp_format": "%Y-%m-%d %H:%M:%S"
