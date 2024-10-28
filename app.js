@@ -15,25 +15,28 @@ AWS.config.update({ region: process.env.AWS_REGION || 'us-east-1' });
 const cloudwatch = new AWS.CloudWatch();
 
 let dbConnected = false;
+const isTestEnv = process.env.NODE_ENV === 'test';
 
-// Utility function to log metrics
-const logMetric = (metricName, value, unit = 'Milliseconds') => {
-    const params = {
-        MetricData: [
-            {
-                MetricName: metricName,
-                Dimensions: [{ Name: 'InstanceId', Value: process.env.INSTANCE_ID || 'localhost' }],
-                Unit: unit,
-                Value: value
-            }
-        ],
-        Namespace: 'WebAppMetrics'
-    };
-    cloudwatch.putMetricData(params, (err) => {
-        if (err) console.error(`Failed to push metric ${metricName}:`, err);
-        else console.log(`Metric ${metricName} pushed successfully`);
-    });
-};
+// Utility function to log metrics (only active in non-test environments)
+const logMetric = !isTestEnv
+    ? (metricName, value, unit = 'Milliseconds') => {
+        const params = {
+            MetricData: [
+                {
+                    MetricName: metricName,
+                    Dimensions: [{ Name: 'InstanceId', Value: process.env.INSTANCE_ID || 'localhost' }],
+                    Unit: unit,
+                    Value: value
+                }
+            ],
+            Namespace: 'WebAppMetrics'
+        };
+        cloudwatch.putMetricData(params, (err) => {
+            if (err) console.error(`Failed to push metric ${metricName}:`, err);
+            else console.log(`Metric ${metricName} pushed successfully`);
+        });
+    }
+    : () => {}; // No-op for test environment
 
 // Middleware to track API response time
 app.use((req, res, next) => {
@@ -62,7 +65,7 @@ const checkDatabaseConnection = async () => {
 };
 
 checkDatabaseConnection();
-if (process.env.NODE_ENV !== 'test') {
+if (!isTestEnv) {
     setInterval(checkDatabaseConnection, 2000);
 }
 
@@ -101,7 +104,7 @@ app.use((req, res) => res.status(404).end());
 
 module.exports = app;
 
-if (process.env.NODE_ENV !== 'test') {
+if (!isTestEnv) {
     app.listen(PORT, () => {
         console.log(`Server is running on http://localhost:${PORT}`);
     });
