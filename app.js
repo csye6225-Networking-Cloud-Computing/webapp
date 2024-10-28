@@ -35,7 +35,7 @@ setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
 }
 
 // Add Sequelize sync (bootstrapping logic) to ensure schema is updated
-sequelize.sync({ force: true })
+sequelize.sync({ force: false })
     .then(() => {
         console.log('Database synchronized successfully');
     })
