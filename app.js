@@ -3,7 +3,6 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const healthRoutes = require('./routes/health');
 const userRoutes = require('./routes/user');
-const profilePictureRoutes = require('./routes/profilepicture'); // Import profile picture routes
 const { sequelize } = require('./config/database');
 
 dotenv.config();
@@ -36,7 +35,7 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Add Sequelize sync (bootstrapping logic) to ensure schema is updated
-sequelize.sync({ force: false })
+sequelize.sync({ force: true })
     .then(() => {
         console.log('Database synchronized successfully');
     })
@@ -81,13 +80,23 @@ unsupportedMethods.forEach((method) => {
     });
 });
 
+// Handle unsupported methods (OPTIONS, HEAD, PATCH, PUT) explicitly for /v1/user/self/pic
+const unsupportedMethodsForPic = ['OPTIONS', 'HEAD', 'PATCH', 'PUT'];
+
+// For the /v1/user/self/pic route
+unsupportedMethodsForPic.forEach((method) => {
+    app[method.toLowerCase()]('/v1/user/self/pic', checkDBStatusMiddleware, (req, res) => {
+        res.set('Allow', 'GET, POST, DELETE');  // Specify the allowed methods for /self/pic
+        return res.status(405).end();  // Return 405 Method Not Allowed
+    });
+});
+
 // Enable CORS for all routes after OPTIONS/HEAD handling
 app.use(cors());
 
 // Define routes and add database status middleware
 app.use('/healthz', checkDBStatusMiddleware, healthRoutes);
 app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
-app.use('/v1/user', checkDBStatusMiddleware, profilePictureRoutes); // Mount profile picture routes under /v1/user
 
 // Add a 404 handler for undefined routes
 app.use((req, res) => {
