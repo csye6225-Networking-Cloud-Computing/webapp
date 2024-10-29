@@ -16,8 +16,18 @@ const PORT = process.env.PORT || 8080;
 // Initialize StatsD client
 const client = new StatsD({ host: 'localhost', port: 8125 });
 
+// Ensure logs directory and app.log file exist
+const logsDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir);
+}
+const logFilePath = path.join(logsDir, 'app.log');
+if (!fs.existsSync(logFilePath)) {
+    fs.writeFileSync(logFilePath, ''); // Create an empty log file if it doesn't exist
+}
+
 // Setup logging to app.log
-const logStream = fs.createWriteStream(path.join(__dirname, 'logs', 'app.log'), { flags: 'a' });
+const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
 
 // Middleware for request logging
 app.use((req, res, next) => {
