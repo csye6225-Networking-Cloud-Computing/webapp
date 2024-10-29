@@ -85,6 +85,10 @@ cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agen
       "cpu": {
         "measurement": ["cpu_usage_active"],
         "metrics_collection_interval": 60
+      },
+      "statsd": {
+        "service_address": ":8125",
+        "metrics_collection_interval": 15
       }
     }
   },
@@ -115,12 +119,11 @@ EOF
 echo "Starting CloudWatch Agent..."
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
-# Verify CloudWatch Agent status
-sudo systemctl status amazon-cloudwatch-agent || exit 1
-
-# Install and Configure StatsD for Metrics
+# Install and Configure StatsD and CloudWatch backend
 echo "Installing and Configuring StatsD..."
-sudo npm install -g statsd
+sudo npm install -g statsd statsd-cloudwatch-backend
+
+# Create StatsD configuration for CloudWatch
 sudo mkdir -p /etc/statsd
 cat <<EOF | sudo tee /etc/statsd/config.js
 {
@@ -133,7 +136,10 @@ cat <<EOF | sudo tee /etc/statsd/config.js
 }
 EOF
 
-# Start StatsD as a background process
-sudo nohup statsd /etc/statsd/config.js &
+# Use PM2 to keep StatsD running in the background
+sudo npm install -g pm2
+sudo pm2 start $(which statsd) -- -c /etc/statsd/config.js
+sudo pm2 save
+sudo pm2 startup systemd
 
 echo "Installation completed!"

@@ -4,7 +4,7 @@ const cors = require('cors');
 const healthRoutes = require('./routes/health');
 const userRoutes = require('./routes/user');
 const { sequelize } = require('./config/database');
-const StatsD = require('node-statsd');  // Import StatsD
+const StatsD = require('node-statsd');
 const fs = require('fs');
 const path = require('path');
 
@@ -50,6 +50,7 @@ const checkDatabaseConnection = async () => {
     } catch (error) {
         if (dbConnected) {
             console.error('Unable to connect to the database:', error.message);
+            client.increment('db.errors'); // Log database connection error to StatsD
             dbConnected = false;
         }
     }
@@ -68,6 +69,7 @@ sequelize.sync({ force: true })
     })
     .catch(err => {
         console.error('Detailed Error:', JSON.stringify(err, null, 2));
+        client.increment('db.errors.sync'); // Log sync errors to StatsD
     });
 
 // Middleware to handle database down (503 Service Unavailable) response
@@ -101,6 +103,7 @@ app.use(express.json());
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
         console.error('Bad JSON Request:', err.message);
+        client.increment('api.errors.json_parse'); // Log JSON parse errors to StatsD
         return res.status(400).end();
     }
     next();
