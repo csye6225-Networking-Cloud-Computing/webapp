@@ -32,7 +32,7 @@ fi
 # Ensure app.js is executable
 sudo chmod +x /opt/webapp/app.js
 
-# Create the csye6225 user if not exists, for non-root ownership and permissions
+# Create the csye6225 user if it doesn't exist, for non-root ownership and permissions
 if ! id -u csye6225 &>/dev/null; then
   sudo useradd -r -s /usr/sbin/nologin csye6225
 fi
@@ -43,7 +43,7 @@ sudo touch /opt/webapp/logs/app.log
 sudo chown csye6225:csye6225 /opt/webapp/logs/app.log
 sudo chmod 664 /opt/webapp/logs/app.log  # Read-write for owner and group
 
-# Set ownership and permissions for web application directory
+# Set ownership and permissions for the web application directory
 sudo chown -R csye6225:csye6225 /opt/webapp
 sudo chmod -R 755 /opt/webapp
 
@@ -117,5 +117,23 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-c
 
 # Verify CloudWatch Agent status
 sudo systemctl status amazon-cloudwatch-agent || exit 1
+
+# Install and Configure StatsD for Metrics
+echo "Installing and Configuring StatsD..."
+sudo npm install -g statsd
+sudo mkdir -p /etc/statsd
+cat <<EOF | sudo tee /etc/statsd/config.js
+{
+  port: 8125,
+  backends: ["statsd-cloudwatch-backend"],
+  cloudwatch: {
+    namespace: "WebAppMetrics",
+    region: process.env.AWS_REGION || "us-east-1"
+  }
+}
+EOF
+
+# Start StatsD as a background process
+sudo nohup statsd /etc/statsd/config.js &
 
 echo "Installation completed!"

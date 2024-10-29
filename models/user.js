@@ -28,18 +28,6 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  profilePicUrl: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  profilePicKey: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  profilePicMetadata: {
-    type: DataTypes.JSON,
-    allowNull: true,
-  },
 }, {
   timestamps: true,
   createdAt: 'account_created',
