@@ -1,20 +1,21 @@
+const AWS = require('aws-sdk');
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const healthRoutes = require('./routes/health');
 const userRoutes = require('./routes/user');
 const { sequelize } = require('./config/database');
-const StatsD = require('node-statsd');
-const fs = require('fs');
-const path = require('path');
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Initialize StatsD client
-const client = new StatsD({ host: 'localhost', port: 8125 });
+// Set up CloudWatch and region configuration
+AWS.config.update({ region: process.env.AWS_REGION || 'us-east-1' });
+const cloudwatch = new AWS.CloudWatch();
 
 // Ensure logs directory and app.log file exist
 const logsDir = path.join(__dirname, 'logs');
@@ -28,29 +29,57 @@ if (!fs.existsSync(logFilePath)) {
 
 // Setup logging to app.log
 const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
-
-// Middleware for request logging
-app.use((req, res, next) => {
-    const logMessage = `${new Date().toISOString()} - ${req.method} ${req.url}\n`;
+const logToFile = (message) => {
+    const logMessage = `${new Date().toISOString()} - ${message}\n`;
     logStream.write(logMessage);
     console.log(logMessage); // Optional: also log to console
+};
+
+// Utility function to log metrics (only active in non-test environments)
+const logMetric = (metricName, value, unit = 'Milliseconds') => {
+    if (process.env.NODE_ENV === 'test') return;
+
+    const params = {
+        MetricData: [
+            {
+                MetricName: metricName,
+                Dimensions: [{ Name: 'InstanceId', Value: process.env.INSTANCE_ID || 'localhost' }],
+                Unit: unit,
+                Value: value
+            }
+        ],
+        Namespace: 'WebAppMetrics'
+    };
+    cloudwatch.putMetricData(params, (err) => {
+        if (err) logToFile(`Failed to push metric ${metricName}: ${err}`);
+        else logToFile(`Metric ${metricName} pushed successfully`);
+    });
+};
+
+// Middleware to track API response time and log to CloudWatch
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        logMetric(`API-${req.method}-${req.path}`, duration);
+        logToFile(`Request to ${req.method} ${req.path} took ${duration} ms`);
+    });
     next();
 });
 
-let dbConnected = false; // Track the database connection status
+let dbConnected = false;
 
 // Function to check database connection and log status
 const checkDatabaseConnection = async () => {
     try {
         await sequelize.authenticate();
         if (!dbConnected) {
-            console.log('Database connected...');
+            logToFile('Database connected...');
             dbConnected = true;
         }
     } catch (error) {
         if (dbConnected) {
-            console.error('Unable to connect to the database:', error.message);
-            client.increment('db.errors'); // Log database connection error to StatsD
+            logToFile(`Unable to connect to the database: ${error.message}`);
             dbConnected = false;
         }
     }
@@ -62,48 +91,27 @@ if (process.env.NODE_ENV !== 'test') {
     setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
 }
 
-// Add Sequelize sync (bootstrapping logic) to ensure schema is updated
+// Sync Sequelize schema and log errors to CloudWatch
 sequelize.sync({ force: true })
-    .then(() => {
-        console.log('Database synchronized successfully');
-    })
+    .then(() => logToFile('Database synchronized successfully'))
     .catch(err => {
-        console.error('Detailed Error:', JSON.stringify(err, null, 2));
-        client.increment('db.errors.sync'); // Log sync errors to StatsD
+        logToFile(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
+        logMetric('DBSyncError', 1, 'Count');
     });
 
 // Middleware to handle database down (503 Service Unavailable) response
 const checkDBStatusMiddleware = (req, res, next) => {
     if (!dbConnected) {
-        return res.status(503).end(); // No message, just 503 Service Unavailable
+        return res.status(503).end();
     }
     next();
 };
-
-// Middleware for StatsD metrics tracking
-app.use((req, res, next) => {
-    const start = Date.now();
-    
-    res.on('finish', () => {
-        const duration = Date.now() - start;
-        const route = req.route ? req.route.path : req.path;
-
-        // Increment a counter for each API endpoint
-        client.increment(`api.calls.${route}.${req.method.toLowerCase()}`);
-
-        // Log the response time as a timer
-        client.timing(`api.response_time.${route}.${req.method.toLowerCase()}`, duration);
-    });
-
-    next();
-});
 
 // Middleware to handle JSON parsing errors gracefully
 app.use(express.json());
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-        console.error('Bad JSON Request:', err.message);
-        client.increment('api.errors.json_parse'); // Log JSON parse errors to StatsD
+        logToFile(`Bad JSON Request: ${err.message}`);
         return res.status(400).end();
     }
     next();
@@ -130,8 +138,6 @@ unsupportedMethods.forEach((method) => {
 
 // Handle unsupported methods (OPTIONS, HEAD, PATCH, PUT) explicitly for /v1/user/self/pic
 const unsupportedMethodsForPic = ['OPTIONS', 'HEAD', 'PATCH', 'PUT'];
-
-// For the /v1/user/self/pic route
 unsupportedMethodsForPic.forEach((method) => {
     app[method.toLowerCase()]('/v1/user/self/pic', checkDBStatusMiddleware, (req, res) => {
         res.set('Allow', 'GET, POST, DELETE');  // Specify the allowed methods for /self/pic
@@ -148,15 +154,16 @@ app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
 
 // Add a 404 handler for undefined routes
 app.use((req, res) => {
-    return res.status(404).end();  // Send 404 status with no body
+    logToFile(`404 - Not Found: ${req.method} ${req.path}`);
+    res.status(404).end();  // Send 404 status with no body
 });
 
-// Export the app for testing purposes
+// Export app for testing
 module.exports = app;
 
-// Start the server only if not testing
+// Start the server if not in test environment
 if (process.env.NODE_ENV !== 'test') {
     app.listen(PORT, () => {
-        console.log(`Server is running on http://localhost:${PORT}`);
+        logToFile(`Server is running on http://localhost:${PORT}`);
     });
 }

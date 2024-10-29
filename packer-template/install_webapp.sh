@@ -32,7 +32,7 @@ fi
 # Ensure app.js is executable
 sudo chmod +x /opt/webapp/app.js
 
-# Create the csye6225 user if it doesn't exist, for non-root ownership and permissions
+# Create the csye6225 user if not exists, for non-root ownership and permissions
 if ! id -u csye6225 &>/dev/null; then
   sudo useradd -r -s /usr/sbin/nologin csye6225
 fi
@@ -43,7 +43,7 @@ sudo touch /opt/webapp/logs/app.log
 sudo chown csye6225:csye6225 /opt/webapp/logs/app.log
 sudo chmod 664 /opt/webapp/logs/app.log  # Read-write for owner and group
 
-# Set ownership and permissions for the web application directory
+# Set ownership and permissions for web application directory
 sudo chown -R csye6225:csye6225 /opt/webapp
 sudo chmod -R 755 /opt/webapp
 
@@ -85,10 +85,6 @@ cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agen
       "cpu": {
         "measurement": ["cpu_usage_active"],
         "metrics_collection_interval": 60
-      },
-      "statsd": {
-        "service_address": ":8125",
-        "metrics_collection_interval": 15
       }
     }
   },
@@ -119,27 +115,10 @@ EOF
 echo "Starting CloudWatch Agent..."
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
-# Install and Configure StatsD and CloudWatch backend
-echo "Installing and Configuring StatsD..."
-sudo npm install -g statsd statsd-cloudwatch-backend
+# Check CloudWatch Agent status
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status
 
-# Create StatsD configuration for CloudWatch
-sudo mkdir -p /etc/statsd
-cat <<EOF | sudo tee /etc/statsd/config.js
-{
-  port: 8125,
-  backends: ["statsd-cloudwatch-backend"],
-  cloudwatch: {
-    namespace: "WebAppMetrics",
-    region: process.env.AWS_REGION || "us-east-1"
-  }
-}
-EOF
-
-# Use PM2 to keep StatsD running in the background
-sudo npm install -g pm2
-sudo pm2 start $(which statsd) -- -c /etc/statsd/config.js
-sudo pm2 save
-sudo pm2 startup systemd
+# Verify CloudWatch Agent status
+sudo systemctl status amazon-cloudwatch-agent || exit 1
 
 echo "Installation completed!"
