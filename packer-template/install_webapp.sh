@@ -115,9 +115,6 @@ EOF
 echo "Starting CloudWatch Agent..."
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
-# Check CloudWatch Agent status
-sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status
-
 # Verify CloudWatch Agent status
 sudo systemctl status amazon-cloudwatch-agent || exit 1
 
@@ -140,8 +137,29 @@ cat <<EOF | sudo tee /etc/statsd/config.js
 }
 EOF
 
-# Start StatsD as a background process
-echo "Starting StatsD..."
-sudo nohup statsd /etc/statsd/config.js &
+# Configure StatsD as a systemd service
+echo "Configuring StatsD as a systemd service..."
+cat <<EOF | sudo tee /etc/systemd/system/statsd.service
+[Unit]
+Description=StatsD Service
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/statsd /etc/statsd/config.js
+Restart=on-failure
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd, enable, and start the StatsD service
+sudo systemctl daemon-reload
+sudo systemctl enable statsd
+sudo systemctl start statsd
+
+# Verify StatsD service status
+sudo systemctl status statsd || exit 1
 
 echo "Installation completed!"
