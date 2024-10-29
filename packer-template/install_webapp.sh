@@ -121,4 +121,27 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a 
 # Verify CloudWatch Agent status
 sudo systemctl status amazon-cloudwatch-agent || exit 1
 
+# Install and Configure StatsD
+echo "Installing StatsD and CloudWatch backend for StatsD..."
+sudo npm install -g statsd statsd-cloudwatch-backend
+
+# Create StatsD configuration directory if it doesn't exist
+sudo mkdir -p /etc/statsd
+
+# Create a StatsD configuration file with CloudWatch backend
+cat <<EOF | sudo tee /etc/statsd/config.js
+{
+  port: 8125,
+  backends: ["statsd-cloudwatch-backend"],
+  cloudwatch: {
+    namespace: "WebAppMetrics",
+    region: process.env.AWS_REGION || "us-east-1"
+  }
+}
+EOF
+
+# Start StatsD as a background process
+echo "Starting StatsD..."
+sudo nohup statsd /etc/statsd/config.js &
+
 echo "Installation completed!"

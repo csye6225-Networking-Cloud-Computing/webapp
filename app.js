@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const StatsD = require('node-statsd');
 const healthRoutes = require('./routes/health');
 const userRoutes = require('./routes/user');
 const { sequelize } = require('./config/database');
@@ -16,6 +17,9 @@ const PORT = process.env.PORT || 8080;
 // Set up CloudWatch and region configuration
 AWS.config.update({ region: process.env.AWS_REGION || 'us-east-1' });
 const cloudwatch = new AWS.CloudWatch();
+
+// Initialize StatsD client
+const statsdClient = new StatsD({ host: 'localhost', port: 8125 });
 
 // Ensure logs directory and app.log file exist
 const logsDir = path.join(__dirname, 'logs');
@@ -35,7 +39,7 @@ const logToFile = (message) => {
     console.log(logMessage); // Optional: also log to console
 };
 
-// Utility function to log metrics (only active in non-test environments)
+// Utility function to log CloudWatch metrics
 const logMetric = (metricName, value, unit = 'Milliseconds') => {
     if (process.env.NODE_ENV === 'test') return;
 
@@ -56,12 +60,13 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
     });
 };
 
-// Middleware to track API response time and log to CloudWatch
+// Middleware to track API response time and log to CloudWatch and StatsD
 app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
         const duration = Date.now() - start;
         logMetric(`API-${req.method}-${req.path}`, duration);
+        statsdClient.timing(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}`, duration);
         logToFile(`Request to ${req.method} ${req.path} took ${duration} ms`);
     });
     next();
@@ -72,7 +77,12 @@ let dbConnected = false;
 // Function to check database connection and log status
 const checkDatabaseConnection = async () => {
     try {
+        const start = Date.now();
         await sequelize.authenticate();
+        const dbDuration = Date.now() - start;
+        logMetric('DBConnectionTime', dbDuration);
+        statsdClient.timing('db.connection.time', dbDuration);
+
         if (!dbConnected) {
             logToFile('Database connected...');
             dbConnected = true;
