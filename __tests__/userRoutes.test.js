@@ -14,9 +14,9 @@ const generateAuthHeader = (email, password) => {
 
 // Sync the models in correct order before each test
 beforeEach(async () => {
-  await User.sync({ force: true });
-  await ProfilePicture.sync({ force: true });
+  await sequelize.sync({ force: true });
 });
+
 
 // Close all connections after tests
 afterAll(async () => {
