@@ -1,14 +1,13 @@
 // models/user.js
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
-const Image = require('./image');
+const ProfilePicture = require('./profilePicture');  // Assuming the image model is named ProfilePicture
 
 const User = sequelize.define('User', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
-    readOnly: true,  // Swagger interpretation
   },
   first_name: {
     type: DataTypes.STRING,
@@ -21,7 +20,7 @@ const User = sequelize.define('User', {
   password: {
     type: DataTypes.STRING,
     allowNull: false,
-    writeOnly: true,  // Swagger interpretation: exclude from GET responses
+    writeOnly: true,  // Indicates this should be write-only
   },
   email: {
     type: DataTypes.STRING,
@@ -33,11 +32,11 @@ const User = sequelize.define('User', {
   },
 }, {
   timestamps: true,
-  createdAt: 'account_created',  // readOnly implied for created/updated timestamps
+  createdAt: 'account_created',
   updatedAt: 'account_updated',
   tableName: 'user',
 });
 
-User.hasOne(Image, { foreignKey: 'user_id', as: 'profilePicture' });
+User.hasOne(ProfilePicture, { foreignKey: 'user_id', as: 'profilePicture' });
 
 module.exports = User;
