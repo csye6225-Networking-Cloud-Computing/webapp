@@ -19,9 +19,10 @@ beforeEach(async () => {
 
 
 // Close all connections after tests
+// Close all connections after tests
 afterAll(async () => {
   await sequelize.close();
-  if (statsdClient) {
+  if (statsdClient && typeof statsdClient.close === 'function') {
     statsdClient.close();  // Close StatsD to prevent lingering connections
   }
 });
