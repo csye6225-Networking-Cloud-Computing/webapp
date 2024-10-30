@@ -4,21 +4,21 @@ const AWS = require('aws-sdk');
 const multer = require('multer');
 const moment = require('moment-timezone');
 const User = require('../models/user');
-const ProfilePicture = require('../models/profilePicture');
+const ProfilePicture = require('../models/profilePicture'); // Import ProfilePicture model
 const authenticate = require('../middleware/authenticate');
 const { sequelize } = require('../config/database');
-const StatsD = require('node-statsd');
 
 const router = express.Router();
-const s3 = new AWS.S3({ region: process.env.AWS_REGION || 'us-east-1' });
-const statsdClient = new StatsD({ host: 'localhost', port: 8125 });
-const bucketName = process.env.S3_BUCKET_NAME;
+const s3 = new AWS.S3({
+  region: process.env.AWS_REGION || 'us-east-1',
+});
+const bucketName = process.env.S3_BUCKET_NAME; // Ensure this is set in your environment
 
 // Set up multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5 MB
   fileFilter: (req, file, cb) => {
     if (['image/jpeg', 'image/png', 'image/jpg'].includes(file.mimetype)) {
       cb(null, true);
@@ -29,7 +29,15 @@ const upload = multer({
 });
 
 // Utility function to convert timestamps to EST/EDT
-const convertToEST = (timestamp) => moment(timestamp).tz('America/New_York').format();
+const convertToEST = (user) => {
+  if (user.account_created) {
+    user.account_created = moment(user.account_created).tz('America/New_York').format();
+  }
+  if (user.account_updated) {
+    user.account_updated = moment(user.account_updated).tz('America/New_York').format();
+  }
+  return user;
+};
 
 // Middleware to check database connection and return 503 if down
 const checkDatabaseConnection = async (req, res, next) => {
@@ -41,118 +49,88 @@ const checkDatabaseConnection = async (req, res, next) => {
   }
 };
 
-// Utility function to log metrics to CloudWatch
-const logMetric = (metricName, value, unit = 'Milliseconds') => {
-  const params = {
-    MetricData: [
-      {
-        MetricName: metricName,
-        Dimensions: [{ Name: 'InstanceId', Value: process.env.INSTANCE_ID || 'localhost' }],
-        Unit: unit,
-        Value: value,
-      },
-    ],
-    Namespace: 'WebAppMetrics',
-  };
-  const cloudwatch = new AWS.CloudWatch();
-  cloudwatch.putMetricData(params, (err) => {
-    if (err) console.error(`Failed to push metric ${metricName}: ${err}`);
-  });
-};
-
-// Function to time database and S3 operations
-const timedOperation = async (operation, metricPrefix) => {
-  const start = Date.now();
-  const result = await operation();
-  const duration = Date.now() - start;
-  logMetric(`${metricPrefix}_ExecutionTime`, duration);
-  statsdClient.timing(`${metricPrefix}.execution_time`, duration);
-  return result;
-};
-
-// Middleware to time API calls and increment count in StatsD
-router.use((req, res, next) => {
-  const start = Date.now();
-  statsdClient.increment(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}.count`);
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    logMetric(`API_${req.method}_${req.path}_ExecutionTime`, duration);
-    statsdClient.timing(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}.execution_time`, duration);
-  });
-  next();
-});
+// Regular expressions for validation
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const nameRegex = /^[a-zA-Z0-9]+$/;
 
 // POST /v1/user/self/pic - Upload profile picture
 router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('profilePic'), async (req, res) => {
   const userId = req.user.id;
+
   try {
-    const existingPicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId } }), 'DBQuery');
+    // Check if the user already has a profile picture
+    const existingPicture = await ProfilePicture.findOne({ where: { userId } });
     if (existingPicture) {
-      return res.status(400).end();
+      // If the user already has a profile picture, return 400 Bad Request
+      return res.status(400).json({ error: 'Profile picture already exists. Delete it before uploading a new one.' });
     }
 
+    // Generate a unique file name for the S3 object
     const fileName = `${Date.now()}-${req.file.originalname}`;
     const uploadParams = {
       Bucket: bucketName,
-      Key: `user-profile-pics/${userId}/${fileName}`,
+      Key: `user-profile-pics/${userId}/${fileName}`, // Unique key for each file
       Body: req.file.buffer,
       ContentType: req.file.mimetype,
-      Metadata: { userId: String(userId) },
+      Metadata: {
+        userId: String(userId),
+      },
     };
 
-    const data = await timedOperation(() => s3.upload(uploadParams).promise(), 'S3Upload');
-    const profilePicture = await timedOperation(() =>
-      ProfilePicture.create({
-        userId,
-        url: data.Location,
-        key: uploadParams.Key,
-        metadata: {
-          file_name: req.file.originalname,
-          content_type: req.file.mimetype,
-          upload_date: new Date().toISOString(),
-        },
-      }),
-      'DBQuery'
-    );
+    // Upload the file to S3
+    const data = await s3.upload(uploadParams).promise();
+    const imageUrl = data.Location;
 
+    // Create a new record in ProfilePicture table
+    const profilePicture = await ProfilePicture.create({
+      userId,
+      url: imageUrl,
+      key: uploadParams.Key,
+      metadata: {
+        file_name: req.file.originalname,
+        content_type: req.file.mimetype,
+        upload_date: new Date().toISOString(),
+      },
+    });
+
+    // Return the response in the specified format
     res.status(201).json({
       file_name: req.file.originalname,
       id: profilePicture.id,
-      url: data.Location,
-      upload_date: convertToEST(new Date()),
+      url: imageUrl,
+      upload_date: new Date().toISOString(),
       user_id: userId,
     });
   } catch (error) {
-    res.status(500).end();
+    console.error('Error uploading profile picture:', error);
+    res.status(500).json({ error: 'Error uploading profile picture' });
   }
 });
 
 // GET /v1/user/self/pic - Retrieve profile picture metadata
 router.get('/self/pic', authenticate, checkDatabaseConnection, async (req, res) => {
   try {
-    const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery');
+    const profilePicture = await ProfilePicture.findOne({ where: { userId: req.user.id } });
     if (!profilePicture) {
-      return res.status(404).end();
+      return res.status(404).json({ error: 'Profile picture not found' });
     }
-
     res.status(200).json({
-      file_name: profilePicture.metadata.file_name,
-      id: profilePicture.id,
-      url: profilePicture.url,
-      upload_date: convertToEST(profilePicture.metadata.upload_date),
-      user_id: req.user.id,
+      profilePicUrl: profilePicture.url,
+      profilePicMetadata: profilePicture.metadata,
+      message: 'Profile picture metadata retrieved successfully',
     });
   } catch (error) {
-    res.status(500).end();
+    console.error('Error retrieving profile picture metadata:', error);
+    res.status(500).json({ error: 'Error retrieving profile picture metadata' });
   }
 });
 
 // DELETE /v1/user/self/pic - Delete profile picture
 router.delete('/self/pic', authenticate, checkDatabaseConnection, async (req, res) => {
   try {
-    const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery');
+    const profilePicture = await ProfilePicture.findOne({ where: { userId: req.user.id } });
     if (!profilePicture) {
-      return res.status(404).end();
+      return res.status(404).json({ error: 'Profile picture not found' });
     }
 
     const deleteParams = {
@@ -160,11 +138,15 @@ router.delete('/self/pic', authenticate, checkDatabaseConnection, async (req, re
       Key: profilePicture.key,
     };
 
-    await timedOperation(() => s3.deleteObject(deleteParams).promise(), 'S3Delete');
-    await timedOperation(() => profilePicture.destroy(), 'DBQuery');
+    await s3.deleteObject(deleteParams).promise();
+
+    // Remove the profile picture record from the database
+    await profilePicture.destroy();
+
     res.status(204).end();
   } catch (error) {
-    res.status(500).end();
+    console.error('Error deleting profile picture:', error);
+    res.status(500).json({ error: 'Error deleting profile picture' });
   }
 });
 
@@ -172,77 +154,97 @@ router.delete('/self/pic', authenticate, checkDatabaseConnection, async (req, re
 router.post('/', checkDatabaseConnection, async (req, res) => {
   const { first_name, last_name, password, email } = req.body;
 
-  if (!email || !emailRegex.test(email) || !first_name || !nameRegex.test(first_name) || !last_name || !nameRegex.test(last_name) || !password) {
-    return res.status(400).end();
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+  if (!first_name || !nameRegex.test(first_name)) {
+    return res.status(400).json({ error: 'Invalid first name' });
+  }
+  if (!last_name || !nameRegex.test(last_name)) {
+    return res.status(400).json({ error: 'Invalid last name' });
+  }
+  if (!password) {
+    return res.status(400).json({ error: 'Password is required' });
   }
 
   try {
-    const existingUser = await timedOperation(() => User.findOne({ where: { email } }), 'DBQuery');
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return res.status(400).end();
+      return res.status(400).json({ error: 'Email already in use' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await timedOperation(() =>
-      User.create({
-        email,
-        password: hashedPassword,
-        firstName: first_name,
-        lastName: last_name,
-        account_created: new Date(),
-        account_updated: new Date(),
-      }),
-      'DBQuery'
-    );
+    const newUser = await User.create({
+      email,
+      password: hashedPassword,
+      firstName: first_name,
+      lastName: last_name,
+      account_created: new Date(),
+      account_updated: new Date(),
+    });
 
     const { password: _, ...userResponse } = newUser.toJSON();
-    res.status(201).json({
-      ...userResponse,
-      account_created: convertToEST(newUser.account_created),
-      account_updated: convertToEST(newUser.account_updated),
-    });
+    const estUserResponse = convertToEST(userResponse);
+
+    res.status(201).json(estUserResponse);
   } catch (error) {
-    res.status(500).end();
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // GET /v1/users/self - Retrieve authenticated user's info
 router.get('/self', authenticate, checkDatabaseConnection, async (req, res) => {
   try {
-    const user = await timedOperation(() => User.findByPk(req.user.id), 'DBQuery');
+    const user = await User.findByPk(req.user.id);
     if (!user) {
-      return res.status(404).end();
+      return res.status(404).json({ error: 'User not found' });
     }
 
     const { password: _, ...userResponse } = user.toJSON();
-    res.status(200).json({
-      ...userResponse,
-      account_created: convertToEST(user.account_created),
-      account_updated: convertToEST(user.account_updated),
-    });
+    const estUserResponse = convertToEST(userResponse);
+
+    res.status(200).json(estUserResponse);
   } catch (error) {
-    res.status(500).end();
+    console.error('Error retrieving user info:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // PUT /v1/users/self - Update the authenticated user's information
 router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
-  if (Object.keys(req.query).length > 0 || Object.keys(req.body).some(field => !['first_name', 'last_name', 'password'].includes(field))) {
+  if (Object.keys(req.query).length > 0) {
+    return res.status(400).end();
+  }
+
+  const { first_name, last_name, password } = req.body;
+  const allowedFields = ['first_name', 'last_name', 'password'];
+  const attemptedUpdates = Object.keys(req.body).filter(field => !allowedFields.includes(field));
+
+  if (attemptedUpdates.length > 0) {
+    return res.status(400).end();
+  }
+
+  if ((first_name && !nameRegex.test(first_name)) || (last_name && !nameRegex.test(last_name))) {
     return res.status(400).end();
   }
 
   try {
-    const user = await timedOperation(() => User.findByPk(req.user.id), 'DBQuery');
+    const user = await User.findByPk(req.user.id);
     if (!user) {
       return res.status(404).end();
     }
 
-    if (req.body.first_name) user.firstName = req.body.first_name;
-    if (req.body.last_name) user.lastName = req.body.last_name;
-    if (req.body.password) user.password = await bcrypt.hash(req.body.password, 10);
+    if (first_name) user.firstName = first_name;
+    if (last_name) user.lastName = last_name;
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      user.password = hashedPassword;
+    }
 
     user.account_updated = new Date();
-    await timedOperation(() => user.save(), 'DBQuery');
+    await user.save();
 
     res.status(204).end();
   } catch (error) {
