@@ -11,8 +11,12 @@ const StatsD = require('node-statsd');
 
 const router = express.Router();
 const s3 = new AWS.S3({ region: process.env.AWS_REGION || 'us-east-1' });
-const statsdClient = new StatsD({ host: 'localhost', port: 8125 });
+const statsdClient = new StatsD({ host: process.env.STATSD_HOST || 'localhost', port: 8125 });
 const bucketName = process.env.S3_BUCKET_NAME;
+
+// Define regex patterns
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const nameRegex = /^[A-Za-z]+$/;
 
 // Set up multer for file uploads
 const storage = multer.memoryStorage();
