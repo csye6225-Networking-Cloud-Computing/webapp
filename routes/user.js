@@ -47,6 +47,11 @@ const checkDatabaseConnection = async (req, res, next) => {
 
 // Utility function to log metrics to CloudWatch
 const logMetric = (metricName, value, unit = 'Milliseconds') => {
+  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+    console.warn(`Skipping metric ${metricName} due to missing AWS credentials.`);
+    return;
+  }
+
   const params = {
     MetricData: [
       {
@@ -58,11 +63,13 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
     ],
     Namespace: 'WebAppMetrics',
   };
+
   const cloudwatch = new AWS.CloudWatch();
   cloudwatch.putMetricData(params, (err) => {
     if (err) console.error(`Failed to push metric ${metricName}: ${err}`);
   });
 };
+
 
 // Function to time database and S3 operations
 const timedOperation = async (operation, metricPrefix) => {
