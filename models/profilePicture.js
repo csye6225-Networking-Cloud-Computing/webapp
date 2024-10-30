@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
-const User = require('./user');  // Ensure you import User
+const User = require('./user');
 
 const ProfilePicture = sequelize.define('ProfilePicture', {
   id: {
@@ -15,7 +15,7 @@ const ProfilePicture = sequelize.define('ProfilePicture', {
       model: User,
       key: 'id',
     },
-    unique: true, // Ensure each user can only have one profile picture
+    unique: true,
   },
   url: {
     type: DataTypes.STRING,
@@ -26,14 +26,15 @@ const ProfilePicture = sequelize.define('ProfilePicture', {
     allowNull: false,
   },
   metadata: {
-    type: DataTypes.JSON, // Store metadata (e.g., file name, content type, upload date)
+    type: DataTypes.JSON,
     allowNull: true,
   },
 }, {
   timestamps: true,
-  tableName: 'ProfilePictures',
+  tableName: 'image',
 });
 
+// Define associations after exporting
 ProfilePicture.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 module.exports = ProfilePicture;
