@@ -70,7 +70,6 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
   });
 };
 
-
 // Function to time database and S3 operations
 const timedOperation = async (operation, metricPrefix) => {
   const start = Date.now();

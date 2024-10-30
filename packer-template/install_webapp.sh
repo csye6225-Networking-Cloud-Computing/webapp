@@ -74,7 +74,7 @@ cat <<EOF | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agen
   },
   "metrics": {
     "append_dimensions": {
-      "InstanceId": "\$${aws:InstanceId}"
+      "InstanceId": "\${aws:InstanceId}"
     },
     "aggregation_dimensions": [["InstanceId"]],
     "metrics_collected": {
