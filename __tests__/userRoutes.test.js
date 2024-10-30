@@ -1,6 +1,10 @@
 const request = require('supertest');
 const app = require('../app');  // Import your Express app
 const { sequelize } = require('../config/database');  // Import the Sequelize instance
+const User = require('../models/user');  // Import the User model explicitly
+const Image = require('../models/profilePicture.js');  // Import the Image model explicitly
+const { statsdClient } = require('../routes/user');  // Import StatsD client for cleanup
+const ProfilePicture = require('../models/profilePicture.js');
 
 // Helper function to generate Basic Auth headers
 const generateAuthHeader = (email, password) => {
@@ -8,14 +12,19 @@ const generateAuthHeader = (email, password) => {
   return `Basic ${credentials}`;
 };
 
-// Clean up the database before each test
+// Sync the models in correct order before each test
 beforeEach(async () => {
   await sequelize.sync({ force: true });
 });
 
-// Close the Sequelize connection after all tests
+
+// Close all connections after tests
+// Close all connections after tests
 afterAll(async () => {
   await sequelize.close();
+  if (statsdClient && typeof statsdClient.close === 'function') {
+    statsdClient.close();  // Close StatsD to prevent lingering connections
+  }
 });
 
 describe('User Routes', () => {

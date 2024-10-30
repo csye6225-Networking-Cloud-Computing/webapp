@@ -24,12 +24,15 @@ const sequelize = new Sequelize(
   {
     host: process.env.DB_HOST,
     dialect: 'mysql',
-    port: process.env.DB_PORT || '3306', // Default to port 3306 if not specified
-    logging: false, // Disable query logging for better performance
+    port: process.env.DB_PORT || '3306',
+    logging: process.env.NODE_ENV !== 'test', // Log queries only if not in test mode
     pool: {
-      max: 10,  // Maximum number of connections in the pool
-      min: 0,   // Minimum number of connections in the pool
-      idle: 10000 // Maximum idle time in milliseconds before releasing a connection
+      max: 10,
+      min: 0,
+      idle: 10000
+    },
+    dialectOptions: {
+      charset: 'utf8mb4', // Set charset to utf8mb4
     }
   }
 );
