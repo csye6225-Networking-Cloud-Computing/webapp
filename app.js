@@ -5,6 +5,8 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const StatsD = require('node-statsd');
+const winston = require('winston');
+const WinstonCloudWatch = require('winston-cloudwatch');
 const healthRoutes = require('./routes/health');
 const userRoutes = require('./routes/user');
 const { sequelize } = require('./config/database');
@@ -37,13 +39,17 @@ if (!fs.existsSync(logFilePath)) {
     fs.writeFileSync(logFilePath, ''); // Create an empty log file if it doesn't exist
 }
 
-// Setup logging to app.log
-const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
-const logToFile = (message) => {
-    const logMessage = `${new Date().toISOString()} - ${message}\n`;
-    logStream.write(logMessage);
-    console.log(logMessage); // Optional: also log to console
-};
+// Setup Winston logger with CloudWatch transport
+const logger = winston.createLogger({
+    transports: [
+        new WinstonCloudWatch({
+            logGroupName: '/aws/ec2/app-logs',
+            logStreamName: `${process.env.INSTANCE_ID || 'localhost'}-${Date.now()}`,
+            awsRegion: process.env.AWS_REGION || 'us-east-1',
+        }),
+        new winston.transports.File({ filename: logFilePath })
+    ]
+});
 
 // Utility function to log CloudWatch metrics
 const logMetric = (metricName, value, unit = 'Milliseconds') => {
@@ -61,8 +67,8 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
         Namespace: 'WebAppMetrics'
     };
     cloudwatch.putMetricData(params, (err) => {
-        if (err) logToFile(`Failed to push metric ${metricName}: ${err}`);
-        else logToFile(`Metric ${metricName} pushed successfully`);
+        if (err) logger.error(`Failed to push metric ${metricName}: ${err}`);
+        else logger.info(`Metric ${metricName} pushed successfully`);
     });
 };
 
@@ -73,7 +79,7 @@ app.use((req, res, next) => {
         const duration = Date.now() - start;
         logMetric(`API-${req.method}-${req.path}`, duration);
         statsdClient.timing(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}`, duration);
-        logToFile(`Request to ${req.method} ${req.path} took ${duration} ms`);
+        logger.info(`Request to ${req.method} ${req.path} took ${duration} ms`);
     });
     next();
 });
@@ -90,12 +96,12 @@ const checkDatabaseConnection = async () => {
         statsdClient.timing('db.connection.time', dbDuration);
 
         if (!dbConnected) {
-            logToFile('Database connected...');
+            logger.info('Database connected...');
             dbConnected = true;
         }
     } catch (error) {
         if (dbConnected) {
-            logToFile(`Unable to connect to the database: ${error.message}`);
+            logger.error(`Unable to connect to the database: ${error.message}`);
             dbConnected = false;
         }
     }
@@ -109,9 +115,9 @@ if (process.env.NODE_ENV !== 'test') {
 
 // Sync Sequelize schema and log errors to CloudWatch
 sequelize.sync({ force: true })
-    .then(() => logToFile('Database synchronized successfully'))
+    .then(() => logger.info('Database synchronized successfully'))
     .catch(err => {
-        logToFile(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
+        logger.error(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
         logMetric('DBSyncError', 1, 'Count');
     });
 
@@ -127,7 +133,7 @@ const checkDBStatusMiddleware = (req, res, next) => {
 app.use(express.json());
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-        logToFile(`Bad JSON Request: ${err.message}`);
+        logger.warn(`Bad JSON Request: ${err.message}`);
         return res.status(400).end();
     }
     next();
@@ -170,7 +176,7 @@ app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
 
 // Add a 404 handler for undefined routes
 app.use((req, res) => {
-    logToFile(`404 - Not Found: ${req.method} ${req.path}`);
+    logger.warn(`404 - Not Found: ${req.method} ${req.path}`);
     res.status(404).end();  // Send 404 status with no body
 });
 
@@ -180,6 +186,6 @@ module.exports = app;
 // Start the server if not in test environment
 if (process.env.NODE_ENV !== 'test') {
     app.listen(PORT, () => {
-        logToFile(`Server is running on http://localhost:${PORT}`);
+        logger.info(`Server is running on http://localhost:${PORT}`);
     });
 }
