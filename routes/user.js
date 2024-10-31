@@ -18,10 +18,6 @@ const bucketName = process.env.S3_BUCKET_NAME;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[A-Za-z]+$/;
 
-// Utility function to validate email and name
-const isValidEmail = (email) => emailRegex.test(email);
-const isValidName = (name) => nameRegex.test(name);
-
 // Set up multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -49,8 +45,8 @@ const checkDatabaseConnection = async (req, res, next) => {
   }
 };
 
-// Utility function to log metrics to CloudWatch with metric_type
-const logMetric = (metricName, value, unit = 'Milliseconds', metricType = 'counter') => {
+// Utility function to log metrics to CloudWatch
+const logMetric = (metricName, value, unit = 'Milliseconds') => {
   if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
     console.warn(`Skipping metric ${metricName} due to missing AWS credentials.`);
     return;
@@ -60,10 +56,7 @@ const logMetric = (metricName, value, unit = 'Milliseconds', metricType = 'count
     MetricData: [
       {
         MetricName: metricName,
-        Dimensions: [
-          { Name: 'InstanceId', Value: process.env.INSTANCE_ID || 'localhost' },
-          { Name: 'metric_type', Value: metricType }
-        ],
+        Dimensions: [{ Name: 'InstanceId', Value: process.env.INSTANCE_ID || 'localhost' }],
         Unit: unit,
         Value: value,
       },
@@ -82,7 +75,7 @@ const timedOperation = async (operation, metricPrefix) => {
   const start = Date.now();
   const result = await operation();
   const duration = Date.now() - start;
-  logMetric(`${metricPrefix}_ExecutionTime`, duration, 'Milliseconds', 'timing');
+  logMetric(`${metricPrefix}_ExecutionTime`, duration);
   statsdClient.timing(`${metricPrefix}.execution_time`, duration);
   return result;
 };
@@ -93,7 +86,7 @@ router.use((req, res, next) => {
   statsdClient.increment(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}.count`);
   res.on('finish', () => {
     const duration = Date.now() - start;
-    logMetric(`API_${req.method}_${req.path}_ExecutionTime`, duration, 'Milliseconds', 'timing');
+    logMetric(`API_${req.method}_${req.path}_ExecutionTime`, duration);
     statsdClient.timing(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}.execution_time`, duration);
   });
   next();
