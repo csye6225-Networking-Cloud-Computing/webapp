@@ -6,19 +6,26 @@ const Image = require('../models/profilePicture.js');  // Import the Image model
 const { statsdClient } = require('../routes/user');  // Import StatsD client for cleanup
 const ProfilePicture = require('../models/profilePicture.js');
 
+// Mock node-statsd to prevent open handle issues in Jest
+jest.mock('node-statsd', () => {
+  return jest.fn().mockImplementation(() => ({
+    timing: jest.fn(),
+    increment: jest.fn(),
+    close: jest.fn(),
+  }));
+});
+
 // Helper function to generate Basic Auth headers
 const generateAuthHeader = (email, password) => {
   const credentials = Buffer.from(`${email}:${password}`).toString('base64');
   return `Basic ${credentials}`;
 };
 
-// Sync the models in correct order before each test
+// Sync the database and models before each test to ensure a clean state
 beforeEach(async () => {
   await sequelize.sync({ force: true });
 });
 
-
-// Close all connections after tests
 // Close all connections after tests
 afterAll(async () => {
   await sequelize.close();
@@ -61,7 +68,7 @@ describe('User Routes', () => {
         email: 'john.doe@example.com',
         password: 'password123',
       });
-    expect(res.statusCode).toEqual(400);
+    expect(res.statusCode).toEqual(400); // Conflict due to existing email
   });
 
   // Test for retrieving authenticated user's information
@@ -136,3 +143,4 @@ describe('User Routes', () => {
     expect(res.statusCode).toEqual(400);  // Expecting 400 Bad Request for restricted field update
   });
 });
+
