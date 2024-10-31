@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const AWS = require('aws-sdk');
+const axios = require('axios');
 const multer = require('multer');
 const moment = require('moment-timezone');
 const User = require('../models/user');
@@ -35,15 +36,52 @@ const upload = multer({
 // Utility function to convert timestamps to EST/EDT
 const convertToEST = (timestamp) => moment(timestamp).tz('America/New_York').format();
 
-// Middleware to check database connection and return 503 if down
-const checkDatabaseConnection = async (req, res, next) => {
-  try {
-    await sequelize.authenticate();
-    next();
-  } catch (error) {
-    return res.status(503).end();
+// Cached token and instance ID setup
+let metadataToken = null;
+let tokenExpirationTime = null;
+let instanceId = 'localhost';
+
+// Function to refresh the metadata token if needed
+async function getMetadataToken() {
+  const currentTime = Date.now();
+  if (metadataToken && currentTime < tokenExpirationTime) {
+    return metadataToken;
   }
-};
+
+  try {
+    const response = await axios.put(
+      'http://169.254.169.254/latest/api/token',
+      null,
+      { headers: { 'X-aws-ec2-metadata-token-ttl-seconds': '21600' } }
+    );
+    metadataToken = response.data;
+    tokenExpirationTime = currentTime + 21600 * 1000;
+    return metadataToken;
+  } catch (error) {
+    console.warn("Could not retrieve IMDSv2 token. Using 'localhost' as Instance ID.");
+    return null;
+  }
+}
+
+// Function to retrieve the instance ID using IMDSv2
+async function fetchInstanceId() {
+  try {
+    const token = await getMetadataToken();
+    if (!token) return;
+
+    const instanceResponse = await axios.get(
+      'http://169.254.169.254/latest/meta-data/instance-id',
+      { headers: { 'X-aws-ec2-metadata-token': token } }
+    );
+    instanceId = instanceResponse.data;
+    console.log(`Fetched Instance ID: ${instanceId}`);
+  } catch (error) {
+    console.warn("Could not retrieve Instance ID. Using 'localhost' as fallback.");
+  }
+}
+
+// Fetch instance ID at startup
+fetchInstanceId();
 
 // Utility function to log metrics to CloudWatch
 const logMetric = (metricName, value, unit = 'Milliseconds') => {
@@ -56,7 +94,7 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
     MetricData: [
       {
         MetricName: metricName,
-        Dimensions: [{ Name: 'InstanceId', Value: process.env.INSTANCE_ID || 'localhost' }],
+        Dimensions: [{ Name: 'InstanceId', Value: instanceId }],
         Unit: unit,
         Value: value,
       },
@@ -69,7 +107,6 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
     if (err) console.error(`Failed to push metric ${metricName}: ${err}`);
   });
 };
-
 // Function to time database and S3 operations
 const timedOperation = async (operation, metricPrefix) => {
   const start = Date.now();
