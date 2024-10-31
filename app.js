@@ -1,41 +1,67 @@
-const AWS = require('aws-sdk');
 const express = require('express');
 const dotenv = require('dotenv');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
+const AWS = require('aws-sdk');
 const StatsD = require('node-statsd');
+const path = require('path');
+const fs = require('fs');
+const cors = require('cors');
 const healthRoutes = require('./routes/health');
 const userRoutes = require('./routes/user');
 const { sequelize } = require('./config/database');
+const axios = require('axios');
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Set up CloudWatch and region configuration
+// Set up AWS CloudWatch configuration
 AWS.config.update({ region: process.env.AWS_REGION || 'us-east-1' });
 const cloudwatch = new AWS.CloudWatch();
+const statsdClient = new StatsD({ host: process.env.STATSD_HOST || 'localhost', port: 8125 });
 
-// Initialize StatsD client only if not in test environment
-let statsdClient;
-if (process.env.NODE_ENV !== 'test') {
-    statsdClient = new StatsD({ host: 'localhost', port: 8125 });
-} else {
-    // No-op function for StatsD in test environment
-    statsdClient = { timing: () => {}, increment: () => {} };
-}
+let instanceId = 'localhost'; // Default to "localhost"
 
-// Ensure logs directory and app.log file exist
-const logsDir = path.join(__dirname, 'logs');
-if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir);
-}
-const logFilePath = path.join(logsDir, 'app.log');
-if (!fs.existsSync(logFilePath)) {
-    fs.writeFileSync(logFilePath, ''); // Create an empty log file if it doesn't exist
-}
+// Fetch Instance ID from EC2 metadata service
+const fetchInstanceId = async () => {
+  try {
+    const response = await axios.get('http://169.254.169.254/latest/meta-data/instance-id');
+    instanceId = response.data;
+    console.log(`Fetched Instance ID: ${instanceId}`);
+  } catch (error) {
+    console.warn("Could not retrieve Instance ID, defaulting to 'localhost'.", error);
+  }
+};
+
+// Fetch Instance ID at startup
+fetchInstanceId();
+
+// Utility function to log CloudWatch metrics with metric_type and InstanceId
+const logMetric = (metricName, value, unit = 'Milliseconds', metricType = 'counter') => {
+  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+    console.warn(`Skipping metric ${metricName} due to missing AWS credentials.`);
+    return;
+  }
+
+  const params = {
+    MetricData: [
+      {
+        MetricName: metricName,
+        Dimensions: [
+          { Name: 'InstanceId', Value: instanceId },
+          { Name: 'metric_type', Value: metricType },
+        ],
+        Unit: unit,
+        Value: value,
+      },
+    ],
+    Namespace: 'WebAppMetrics',
+  };
+
+  cloudwatch.putMetricData(params, (err) => {
+    if (err) console.error(`Failed to push metric ${metricName}: ${err}`);
+  });
+};
 
 // Setup logging to app.log
 const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
