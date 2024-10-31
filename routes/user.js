@@ -140,6 +140,14 @@ router.use((req, res, next) => {
   next();
 });
 
+// Middleware to validate empty body and query parameters for GET requests
+const validateNoBodyOrParams = (req, res, next) => {
+  if (Object.keys(req.body).length > 0 || Object.keys(req.query).length > 0) {
+    return res.status(400).json({ error: 'Body or query parameters not allowed' });
+  }
+  next();
+};
+
 // POST /v1/user/self/pic - Upload profile picture
 router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('profilePic'), async (req, res) => {
   const userId = req.user.id;
@@ -186,7 +194,7 @@ router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('p
 });
 
 // GET /v1/user/self/pic - Retrieve profile picture metadata
-router.get('/self/pic', authenticate, checkDatabaseConnection, async (req, res) => {
+router.get('/self/pic', validateNoBodyOrParams, authenticate, checkDatabaseConnection, async (req, res) => {
   try {
     const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery');
     if (!profilePicture) {
@@ -265,7 +273,7 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
 });
 
 // GET /v1/users/self - Retrieve authenticated user's info
-router.get('/self', authenticate, checkDatabaseConnection, async (req, res) => {
+router.get('/self', validateNoBodyOrParams, authenticate, checkDatabaseConnection, async (req, res) => {
   try {
     const user = await timedOperation(() => User.findByPk(req.user.id), 'DBQuery');
     if (!user) {

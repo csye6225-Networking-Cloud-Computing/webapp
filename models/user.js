@@ -6,6 +6,7 @@ const User = sequelize.define('User', {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
+    readOnly: true
   },
   email: {
     type: DataTypes.STRING,
@@ -32,6 +33,7 @@ const User = sequelize.define('User', {
   createdAt: 'account_created',
   updatedAt: 'account_updated',
   tableName: 'user',
+  readOnly: true
 });
 
 module.exports = User;
