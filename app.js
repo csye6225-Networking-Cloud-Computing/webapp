@@ -1,3 +1,4 @@
+const AWS = require('aws-sdk');
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
@@ -13,14 +14,28 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Set up CloudWatch and region configuration
+AWS.config.update({ region: process.env.AWS_REGION || 'us-east-1' });
+const cloudwatch = new AWS.CloudWatch();
+
 // Initialize StatsD client only if not in test environment
-const statsdClient = process.env.NODE_ENV !== 'test' ? new StatsD({ host: 'localhost', port: 8125 }) : { timing: () => {}, increment: () => {} };
+let statsdClient;
+if (process.env.NODE_ENV !== 'test') {
+    statsdClient = new StatsD({ host: 'localhost', port: 8125 });
+} else {
+    // No-op function for StatsD in test environment
+    statsdClient = { timing: () => {}, increment: () => {} };
+}
 
 // Ensure logs directory and app.log file exist
 const logsDir = path.join(__dirname, 'logs');
-if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir);
+if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir);
+}
 const logFilePath = path.join(logsDir, 'app.log');
-if (!fs.existsSync(logFilePath)) fs.writeFileSync(logFilePath, ''); // Create an empty log file if it doesn't exist
+if (!fs.existsSync(logFilePath)) {
+    fs.writeFileSync(logFilePath, ''); // Create an empty log file if it doesn't exist
+}
 
 // Setup logging to app.log
 const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
@@ -30,11 +45,33 @@ const logToFile = (message) => {
     console.log(logMessage); // Optional: also log to console
 };
 
-// Middleware to track API response time and log to StatsD
+// Utility function to log CloudWatch metrics
+const logMetric = (metricName, value, unit = 'Milliseconds') => {
+    if (process.env.NODE_ENV === 'test') return;
+
+    const params = {
+        MetricData: [
+            {
+                MetricName: metricName,
+                Dimensions: [{ Name: 'InstanceId', Value: process.env.INSTANCE_ID || 'localhost' }],
+                Unit: unit,
+                Value: value
+            }
+        ],
+        Namespace: 'WebAppMetrics'
+    };
+    cloudwatch.putMetricData(params, (err) => {
+        if (err) logToFile(`Failed to push metric ${metricName}: ${err}`);
+        else logToFile(`Metric ${metricName} pushed successfully`);
+    });
+};
+
+// Middleware to track API response time and log to CloudWatch and StatsD
 app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
         const duration = Date.now() - start;
+        logMetric(`API-${req.method}-${req.path}`, duration);
         statsdClient.timing(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}`, duration);
         logToFile(`Request to ${req.method} ${req.path} took ${duration} ms`);
     });
@@ -49,6 +86,7 @@ const checkDatabaseConnection = async () => {
         const start = Date.now();
         await sequelize.authenticate();
         const dbDuration = Date.now() - start;
+        logMetric('DBConnectionTime', dbDuration);
         statsdClient.timing('db.connection.time', dbDuration);
 
         if (!dbConnected) {
@@ -69,12 +107,12 @@ if (process.env.NODE_ENV !== 'test') {
     setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
 }
 
-// Sync Sequelize schema and log errors
+// Sync Sequelize schema and log errors to CloudWatch
 sequelize.sync({ force: true })
     .then(() => logToFile('Database synchronized successfully'))
     .catch(err => {
         logToFile(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
-        statsdClient.increment('db.sync.error');
+        logMetric('DBSyncError', 1, 'Count');
     });
 
 // Middleware to handle database down (503 Service Unavailable) response
@@ -96,7 +134,7 @@ app.use((err, req, res, next) => {
 });
 
 // Handle unsupported methods (OPTIONS, HEAD) explicitly before CORS
-const unsupportedMethods = ['OPTIONS', 'HEAD'];
+const unsupportedMethods = ['OPTIONS', 'HEAD', 'DELETE', 'PATCH'];
 
 // For the /v1/users/self route
 unsupportedMethods.forEach((method) => {
