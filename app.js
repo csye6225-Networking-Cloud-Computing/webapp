@@ -1,11 +1,11 @@
-const AWS = require('aws-sdk');
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const http = require('http');  // To fetch instance ID
 const StatsD = require('node-statsd');
+const winston = require('winston');
+const WinstonCloudWatch = require('winston-cloudwatch');
 const healthRoutes = require('./routes/health');
 const userRoutes = require('./routes/user');
 const { sequelize } = require('./config/database');
@@ -15,45 +15,42 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Set up CloudWatch and region configuration
-AWS.config.update({ region: process.env.AWS_REGION || 'us-east-1' });
-const cloudwatch = new AWS.CloudWatch();
-
 // Initialize StatsD client only if not in test environment
+<<<<<<< HEAD
+let statsdClient;
+if (process.env.NODE_ENV !== 'test') {
+    statsdClient = new StatsD({ host: 'localhost', port: 8125 });
+} else {
+    // No-op function for StatsD in test environment
+    statsdClient = { timing: () => {}, increment: () => {} };
+}
+=======
 const statsdClient = process.env.NODE_ENV !== 'test' ? new StatsD({ host: 'localhost', port: 8125 }) : { timing: () => {}, increment: () => {} };
-
-// Fetch instance ID (default to 'localhost' if not on EC2)
-let instanceId = 'localhost';
-const fetchInstanceId = () => {
-    return new Promise((resolve) => {
-        http.get('http://169.254.169.254/latest/meta-data/instance-id', (res) => {
-            res.setEncoding('utf8');
-            res.on('data', (data) => resolve(data));
-        }).on('error', () => {
-            resolve('localhost'); // Fallback to "localhost" if not on EC2
-        });
-    });
-};
-
-// Fetch the instance ID at startup
-(async () => {
-    instanceId = await fetchInstanceId();
-})();
+>>>>>>> 7c52526cba71d57d7400d4f1e0c3a81666e41cc3
 
 // Ensure logs directory and app.log file exist
 const logsDir = path.join(__dirname, 'logs');
-if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir);
+if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir);
+}
 const logFilePath = path.join(logsDir, 'app.log');
-if (!fs.existsSync(logFilePath)) fs.writeFileSync(logFilePath, ''); // Create an empty log file if it doesn't exist
+if (!fs.existsSync(logFilePath)) {
+    fs.writeFileSync(logFilePath, ''); // Create an empty log file if it doesn't exist
+}
 
-// Setup logging to app.log
-const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
-const logToFile = (message) => {
-    const logMessage = `${new Date().toISOString()} - ${message}\n`;
-    logStream.write(logMessage);
-    console.log(logMessage); // Optional: also log to console
-};
+// Setup Winston logger with CloudWatch transport
+const logger = winston.createLogger({
+    transports: [
+        new WinstonCloudWatch({
+            logGroupName: '/aws/ec2/app-logs',
+            logStreamName: `${process.env.INSTANCE_ID || 'localhost'}-${Date.now()}`,
+            awsRegion: process.env.AWS_REGION || 'us-east-1',
+        }),
+        new winston.transports.File({ filename: logFilePath })
+    ]
+});
 
+<<<<<<< HEAD
 // Utility function to log CloudWatch metrics
 const logMetric = (metricName, value, unit = 'Milliseconds') => {
     if (process.env.NODE_ENV === 'test') return;
@@ -62,7 +59,7 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
         MetricData: [
             {
                 MetricName: metricName,
-                Dimensions: [{ Name: 'InstanceId', Value: instanceId }],
+                Dimensions: [{ Name: 'InstanceId', Value: process.env.INSTANCE_ID || 'localhost' }],
                 Unit: unit,
                 Value: value
             }
@@ -70,19 +67,21 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
         Namespace: 'WebAppMetrics'
     };
     cloudwatch.putMetricData(params, (err) => {
-        if (err) logToFile(`Failed to push metric ${metricName}: ${err}`);
-        else logToFile(`Metric ${metricName} pushed successfully`);
+        if (err) logger.error(`Failed to push metric ${metricName}: ${err}`);
+        else logger.info(`Metric ${metricName} pushed successfully`);
     });
 };
 
 // Middleware to track API response time and log to CloudWatch and StatsD
+=======
+// Middleware to track API response time and log to StatsD
+>>>>>>> 7c52526cba71d57d7400d4f1e0c3a81666e41cc3
 app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
         const duration = Date.now() - start;
-        logMetric(`API-${req.method}-${req.path}`, duration);
         statsdClient.timing(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}`, duration);
-        logToFile(`Request to ${req.method} ${req.path} took ${duration} ms`);
+        logger.info(`Request to ${req.method} ${req.path} took ${duration} ms`);
     });
     next();
 });
@@ -95,16 +94,15 @@ const checkDatabaseConnection = async () => {
         const start = Date.now();
         await sequelize.authenticate();
         const dbDuration = Date.now() - start;
-        logMetric('DBConnectionTime', dbDuration);
         statsdClient.timing('db.connection.time', dbDuration);
 
         if (!dbConnected) {
-            logToFile('Database connected...');
+            logger.info('Database connected...');
             dbConnected = true;
         }
     } catch (error) {
         if (dbConnected) {
-            logToFile(`Unable to connect to the database: ${error.message}`);
+            logger.error(`Unable to connect to the database: ${error.message}`);
             dbConnected = false;
         }
     }
@@ -116,12 +114,17 @@ if (process.env.NODE_ENV !== 'test') {
     setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
 }
 
-// Sync Sequelize schema and log errors to CloudWatch
+// Sync Sequelize schema and log errors
 sequelize.sync({ force: true })
-    .then(() => logToFile('Database synchronized successfully'))
+    .then(() => logger.info('Database synchronized successfully'))
     .catch(err => {
-        logToFile(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
+<<<<<<< HEAD
+        logger.error(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
         logMetric('DBSyncError', 1, 'Count');
+=======
+        logToFile(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
+        statsdClient.increment('db.sync.error');
+>>>>>>> 7c52526cba71d57d7400d4f1e0c3a81666e41cc3
     });
 
 // Middleware to handle database down (503 Service Unavailable) response
@@ -136,14 +139,14 @@ const checkDBStatusMiddleware = (req, res, next) => {
 app.use(express.json());
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-        logToFile(`Bad JSON Request: ${err.message}`);
+        logger.warn(`Bad JSON Request: ${err.message}`);
         return res.status(400).end();
     }
     next();
 });
 
 // Handle unsupported methods (OPTIONS, HEAD) explicitly before CORS
-const unsupportedMethods = ['OPTIONS', 'HEAD'];
+const unsupportedMethods = ['OPTIONS', 'HEAD', 'DELETE', 'PATCH'];
 
 // For the /v1/users/self route
 unsupportedMethods.forEach((method) => {
@@ -179,7 +182,7 @@ app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
 
 // Add a 404 handler for undefined routes
 app.use((req, res) => {
-    logToFile(`404 - Not Found: ${req.method} ${req.path}`);
+    logger.warn(`404 - Not Found: ${req.method} ${req.path}`);
     res.status(404).end();  // Send 404 status with no body
 });
 
@@ -189,6 +192,6 @@ module.exports = app;
 // Start the server if not in test environment
 if (process.env.NODE_ENV !== 'test') {
     app.listen(PORT, () => {
-        logToFile(`Server is running on http://localhost:${PORT}`);
+        logger.info(`Server is running on http://localhost:${PORT}`);
     });
 }

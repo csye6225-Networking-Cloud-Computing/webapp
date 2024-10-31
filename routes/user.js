@@ -8,11 +8,24 @@ const ProfilePicture = require('../models/profilePicture');
 const authenticate = require('../middleware/authenticate');
 const { sequelize } = require('../config/database');
 const StatsD = require('node-statsd');
+const winston = require('winston');
+const WinstonCloudWatch = require('winston-cloudwatch');
 
 const router = express.Router();
 const s3 = new AWS.S3({ region: process.env.AWS_REGION || 'us-east-1' });
 const statsdClient = new StatsD({ host: process.env.STATSD_HOST || 'localhost', port: 8125 });
 const bucketName = process.env.S3_BUCKET_NAME;
+
+// Set up Winston logger with CloudWatch transport
+const logger = winston.createLogger({
+  transports: [
+    new WinstonCloudWatch({
+      logGroupName: 'YourAppLogGroup',
+      logStreamName: `${process.env.INSTANCE_ID || 'localhost'}-${Date.now()}`,
+      awsRegion: process.env.AWS_REGION || 'us-east-1',
+    })
+  ]
+});
 
 // Define regex patterns
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,6 +54,7 @@ const checkDatabaseConnection = async (req, res, next) => {
     await sequelize.authenticate();
     next();
   } catch (error) {
+    logger.error('Database connection failed:', error);
     return res.status(503).end();
   }
 };
@@ -48,7 +62,7 @@ const checkDatabaseConnection = async (req, res, next) => {
 // Utility function to log metrics to CloudWatch
 const logMetric = (metricName, value, unit = 'Milliseconds') => {
   if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
-    console.warn(`Skipping metric ${metricName} due to missing AWS credentials.`);
+    logger.warn(`Skipping metric ${metricName} due to missing AWS credentials.`);
     return;
   }
 
@@ -61,33 +75,34 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
         Value: value,
       },
     ],
-    Namespace: 'WebAppMetrics',
+    Namespace: 'YourAppName/APIMetrics',
   };
 
   const cloudwatch = new AWS.CloudWatch();
   cloudwatch.putMetricData(params, (err) => {
-    if (err) console.error(`Failed to push metric ${metricName}: ${err}`);
+    if (err) logger.error(`Failed to push metric ${metricName}: ${err}`);
   });
 };
 
 // Function to time database and S3 operations
-const timedOperation = async (operation, metricPrefix) => {
+const timedOperation = async (operation, metricPrefix, queryName = '') => {
   const start = Date.now();
   const result = await operation();
   const duration = Date.now() - start;
-  logMetric(`${metricPrefix}_ExecutionTime`, duration);
-  statsdClient.timing(`${metricPrefix}.execution_time`, duration);
+  logMetric(`${metricPrefix}_${queryName}_ExecutionTime`, duration);
+  statsdClient.timing(`${metricPrefix}.${queryName}.execution_time`, duration);
   return result;
 };
 
 // Middleware to time API calls and increment count in StatsD
 router.use((req, res, next) => {
   const start = Date.now();
-  statsdClient.increment(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}.count`);
+  const apiPath = req.path.replace(/\//g, '_');
+  statsdClient.increment(`api.${req.method.toLowerCase()}.${apiPath}.count`);
   res.on('finish', () => {
     const duration = Date.now() - start;
-    logMetric(`API_${req.method}_${req.path}_ExecutionTime`, duration);
-    statsdClient.timing(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}.execution_time`, duration);
+    logMetric(`API_${req.method}_${apiPath}_ExecutionTime`, duration);
+    statsdClient.timing(`api.${req.method.toLowerCase()}.${apiPath}.execution_time`, duration);
   });
   next();
 });
@@ -96,7 +111,7 @@ router.use((req, res, next) => {
 router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('profilePic'), async (req, res) => {
   const userId = req.user.id;
   try {
-    const existingPicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId } }), 'DBQuery');
+    const existingPicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId } }), 'DBQuery', 'FindExistingProfilePicture');
     if (existingPicture) {
       return res.status(400).end();
     }
@@ -110,7 +125,7 @@ router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('p
       Metadata: { userId: String(userId) },
     };
 
-    const data = await timedOperation(() => s3.upload(uploadParams).promise(), 'S3Upload');
+    const data = await timedOperation(() => s3.upload(uploadParams).promise(), 'S3Upload', 'UploadProfilePicture');
     const profilePicture = await timedOperation(() =>
       ProfilePicture.create({
         userId,
@@ -122,7 +137,8 @@ router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('p
           upload_date: new Date().toISOString(),
         },
       }),
-      'DBQuery'
+      'DBQuery',
+      'CreateProfilePictureRecord'
     );
 
     res.status(201).json({
@@ -133,6 +149,7 @@ router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('p
       user_id: userId,
     });
   } catch (error) {
+    logger.error('Error in upload profile picture:', error);
     res.status(500).end();
   }
 });
@@ -140,7 +157,7 @@ router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('p
 // GET /v1/user/self/pic - Retrieve profile picture metadata
 router.get('/self/pic', authenticate, checkDatabaseConnection, async (req, res) => {
   try {
-    const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery');
+    const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery', 'FindProfilePicture');
     if (!profilePicture) {
       return res.status(404).end();
     }
@@ -153,6 +170,7 @@ router.get('/self/pic', authenticate, checkDatabaseConnection, async (req, res) 
       user_id: req.user.id,
     });
   } catch (error) {
+    logger.error('Error in retrieve profile picture:', error);
     res.status(500).end();
   }
 });
@@ -160,7 +178,7 @@ router.get('/self/pic', authenticate, checkDatabaseConnection, async (req, res) 
 // DELETE /v1/user/self/pic - Delete profile picture
 router.delete('/self/pic', authenticate, checkDatabaseConnection, async (req, res) => {
   try {
-    const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery');
+    const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery', 'FindProfilePictureForDelete');
     if (!profilePicture) {
       return res.status(404).end();
     }
@@ -170,10 +188,11 @@ router.delete('/self/pic', authenticate, checkDatabaseConnection, async (req, re
       Key: profilePicture.key,
     };
 
-    await timedOperation(() => s3.deleteObject(deleteParams).promise(), 'S3Delete');
-    await timedOperation(() => profilePicture.destroy(), 'DBQuery');
+    await timedOperation(() => s3.deleteObject(deleteParams).promise(), 'S3Delete', 'DeleteProfilePicture');
+    await timedOperation(() => profilePicture.destroy(), 'DBQuery', 'DeleteProfilePictureRecord');
     res.status(204).end();
   } catch (error) {
+    logger.error('Error in delete profile picture:', error);
     res.status(500).end();
   }
 });
@@ -187,7 +206,7 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
   }
 
   try {
-    const existingUser = await timedOperation(() => User.findOne({ where: { email } }), 'DBQuery');
+    const existingUser = await timedOperation(() => User.findOne({ where: { email } }), 'DBQuery', 'FindExistingUser');
     if (existingUser) {
       return res.status(400).end();
     }
@@ -202,7 +221,8 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
         account_created: new Date(),
         account_updated: new Date(),
       }),
-      'DBQuery'
+      'DBQuery',
+      'CreateNewUser'
     );
 
     const { password: _, ...userResponse } = newUser.toJSON();
@@ -212,6 +232,7 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
       account_updated: convertToEST(newUser.account_updated),
     });
   } catch (error) {
+    logger.error('Error in create new user:', error);
     res.status(500).end();
   }
 });
@@ -219,7 +240,7 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
 // GET /v1/users/self - Retrieve authenticated user's info
 router.get('/self', authenticate, checkDatabaseConnection, async (req, res) => {
   try {
-    const user = await timedOperation(() => User.findByPk(req.user.id), 'DBQuery');
+    const user = await timedOperation(() => User.findByPk(req.user.id), 'DBQuery', 'FindUserById');
     if (!user) {
       return res.status(404).end();
     }
@@ -231,6 +252,7 @@ router.get('/self', authenticate, checkDatabaseConnection, async (req, res) => {
       account_updated: convertToEST(user.account_updated),
     });
   } catch (error) {
+    logger.error('Error in retrieve user info:', error);
     res.status(500).end();
   }
 });
@@ -242,7 +264,7 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
   }
 
   try {
-    const user = await timedOperation(() => User.findByPk(req.user.id), 'DBQuery');
+    const user = await timedOperation(() => User.findByPk(req.user.id), 'DBQuery', 'FindUserForUpdate');
     if (!user) {
       return res.status(404).end();
     }
@@ -252,10 +274,11 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
     if (req.body.password) user.password = await bcrypt.hash(req.body.password, 10);
 
     user.account_updated = new Date();
-    await timedOperation(() => user.save(), 'DBQuery');
+    await timedOperation(() => user.save(), 'DBQuery', 'UpdateUser');
 
     res.status(204).end();
   } catch (error) {
+    logger.error('Error in update user info:', error);
     res.status(500).end();
   }
 });
