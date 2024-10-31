@@ -1,3 +1,4 @@
+const AWS = require('aws-sdk');
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
@@ -15,8 +16,11 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Set up CloudWatch and region configuration
+AWS.config.update({ region: process.env.AWS_REGION || 'us-east-1' });
+const cloudwatch = new AWS.CloudWatch();
+
 // Initialize StatsD client only if not in test environment
-<<<<<<< HEAD
 let statsdClient;
 if (process.env.NODE_ENV !== 'test') {
     statsdClient = new StatsD({ host: 'localhost', port: 8125 });
@@ -24,9 +28,6 @@ if (process.env.NODE_ENV !== 'test') {
     // No-op function for StatsD in test environment
     statsdClient = { timing: () => {}, increment: () => {} };
 }
-=======
-const statsdClient = process.env.NODE_ENV !== 'test' ? new StatsD({ host: 'localhost', port: 8125 }) : { timing: () => {}, increment: () => {} };
->>>>>>> 7c52526cba71d57d7400d4f1e0c3a81666e41cc3
 
 // Ensure logs directory and app.log file exist
 const logsDir = path.join(__dirname, 'logs');
@@ -50,7 +51,6 @@ const logger = winston.createLogger({
     ]
 });
 
-<<<<<<< HEAD
 // Utility function to log CloudWatch metrics
 const logMetric = (metricName, value, unit = 'Milliseconds') => {
     if (process.env.NODE_ENV === 'test') return;
@@ -73,13 +73,11 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
 };
 
 // Middleware to track API response time and log to CloudWatch and StatsD
-=======
-// Middleware to track API response time and log to StatsD
->>>>>>> 7c52526cba71d57d7400d4f1e0c3a81666e41cc3
 app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
         const duration = Date.now() - start;
+        logMetric(`API-${req.method}-${req.path}`, duration);
         statsdClient.timing(`api.${req.method.toLowerCase()}.${req.path.replace(/\//g, '_')}`, duration);
         logger.info(`Request to ${req.method} ${req.path} took ${duration} ms`);
     });
@@ -94,6 +92,7 @@ const checkDatabaseConnection = async () => {
         const start = Date.now();
         await sequelize.authenticate();
         const dbDuration = Date.now() - start;
+        logMetric('DBConnectionTime', dbDuration);
         statsdClient.timing('db.connection.time', dbDuration);
 
         if (!dbConnected) {
@@ -114,17 +113,12 @@ if (process.env.NODE_ENV !== 'test') {
     setInterval(checkDatabaseConnection, 2000); // Check every 2 seconds
 }
 
-// Sync Sequelize schema and log errors
+// Sync Sequelize schema and log errors to CloudWatch
 sequelize.sync({ force: true })
     .then(() => logger.info('Database synchronized successfully'))
     .catch(err => {
-<<<<<<< HEAD
         logger.error(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
         logMetric('DBSyncError', 1, 'Count');
-=======
-        logToFile(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
-        statsdClient.increment('db.sync.error');
->>>>>>> 7c52526cba71d57d7400d4f1e0c3a81666e41cc3
     });
 
 // Middleware to handle database down (503 Service Unavailable) response
