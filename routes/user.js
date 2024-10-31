@@ -107,6 +107,7 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
     if (err) console.error(`Failed to push metric ${metricName}: ${err}`);
   });
 };
+
 // Function to time database and S3 operations
 const timedOperation = async (operation, metricPrefix) => {
   const start = Date.now();
