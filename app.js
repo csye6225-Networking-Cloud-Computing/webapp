@@ -4,7 +4,6 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const http = require('http');  // To fetch instance ID
 const StatsD = require('node-statsd');
 const healthRoutes = require('./routes/health');
 const userRoutes = require('./routes/user');
@@ -21,24 +20,6 @@ const cloudwatch = new AWS.CloudWatch();
 
 // Initialize StatsD client only if not in test environment
 const statsdClient = process.env.NODE_ENV !== 'test' ? new StatsD({ host: 'localhost', port: 8125 }) : { timing: () => {}, increment: () => {} };
-
-// Fetch instance ID (default to 'localhost' if not on EC2)
-let instanceId = 'localhost';
-const fetchInstanceId = () => {
-    return new Promise((resolve) => {
-        http.get('http://169.254.169.254/latest/meta-data/instance-id', (res) => {
-            res.setEncoding('utf8');
-            res.on('data', (data) => resolve(data));
-        }).on('error', () => {
-            resolve('localhost'); // Fallback to "localhost" if not on EC2
-        });
-    });
-};
-
-// Fetch the instance ID at startup
-(async () => {
-    instanceId = await fetchInstanceId();
-})();
 
 // Ensure logs directory and app.log file exist
 const logsDir = path.join(__dirname, 'logs');
@@ -62,7 +43,7 @@ const logMetric = (metricName, value, unit = 'Milliseconds') => {
         MetricData: [
             {
                 MetricName: metricName,
-                Dimensions: [{ Name: 'InstanceId', Value: instanceId }],
+                Dimensions: [{ Name: 'InstanceId', Value: process.env.INSTANCE_ID || 'localhost' }],
                 Unit: unit,
                 Value: value
             }
