@@ -22,6 +22,41 @@ jest.mock('node-statsd', () => {
   }));
 });
 
+// Mock middleware to bypass authentication during tests
+jest.mock('../middleware/authenticate', () => (req, res, next) => {
+  req.user = { id: 1 }; // Mock authenticated user with an ID
+  next();
+});
+
+// Mock User model methods
+jest.mock('../models/user', () => {
+  const originalModel = jest.requireActual('../models/user');
+  return {
+    ...originalModel,
+    findByPk: jest.fn().mockImplementation((id) => {
+      return id === 1 ? Promise.resolve({
+        id: 1,
+        email: 'john.doe@example.com',
+        toJSON: () => ({ id: 1, email: 'john.doe@example.com' })
+      }) : Promise.resolve(null);
+    }),
+    findOne: jest.fn().mockImplementation(({ where: { email } }) => {
+      return email === 'john.doe@example.com' ? Promise.resolve({
+        id: 1,
+        email: 'john.doe@example.com',
+        toJSON: () => ({ id: 1, email: 'john.doe@example.com' })
+      }) : Promise.resolve(null);
+    }),
+    create: jest.fn().mockImplementation((userData) => {
+      return Promise.resolve({
+        id: 1,
+        ...userData,
+        toJSON: () => ({ id: 1, ...userData })
+      });
+    }),
+  };
+});
+
 // Helper function to generate Basic Auth headers
 const generateAuthHeader = (email, password) => {
   const credentials = Buffer.from(`${email}:${password}`).toString('base64');
