@@ -1,10 +1,17 @@
 const request = require('supertest');
-const app = require('../app');  // Import your Express app
-const { sequelize } = require('../config/database');  // Import the Sequelize instance
-const User = require('../models/user');  // Import the User model explicitly
-const Image = require('../models/profilePicture.js');  // Import the Image model explicitly
-const { statsdClient } = require('../routes/user');  // Import StatsD client for cleanup
-const ProfilePicture = require('../models/profilePicture.js');
+const app = require('../app'); // Import your Express app
+const { sequelize } = require('../config/database'); // Import Sequelize instance
+const User = require('../models/user'); // Import User model
+const { statsdClient } = require('../routes/user'); // Import StatsD client for cleanup
+
+// Mock the fetchInstanceId function inline to prevent IMDSv2 warnings during tests
+jest.mock('../routes/user', () => {
+  const originalModule = jest.requireActual('../routes/user');
+  return {
+    ...originalModule,
+    fetchInstanceId: jest.fn(() => 'mockInstanceId'), // Inline mock for the function
+  };
+});
 
 // Mock node-statsd to prevent open handle issues in Jest
 jest.mock('node-statsd', () => {
@@ -14,15 +21,6 @@ jest.mock('node-statsd', () => {
     close: jest.fn(),
   }));
 });
-
-// Mock environment variables for AWS credentials to avoid warnings
-process.env.AWS_ACCESS_KEY_ID = 'mockAccessKey';
-process.env.AWS_SECRET_ACCESS_KEY = 'mockSecretKey';
-
-// Mock IMDSv2 token retrieval to avoid console warnings
-jest.mock('../utils/fetchInstanceId', () => ({
-  fetchInstanceId: jest.fn(() => 'mockInstanceId'),  // Return a mocked instance ID
-}));
 
 // Helper function to generate Basic Auth headers
 const generateAuthHeader = (email, password) => {
@@ -39,7 +37,7 @@ beforeEach(async () => {
 afterAll(async () => {
   await sequelize.close();
   if (statsdClient && typeof statsdClient.close === 'function') {
-    statsdClient.close();  // Close StatsD to prevent lingering connections
+    statsdClient.close(); // Close StatsD to prevent lingering connections
   }
 });
 
@@ -125,7 +123,7 @@ describe('User Routes', () => {
         password: 'newpassword123',
       });
 
-    expect(res.statusCode).toEqual(204);  // No content expected for a successful update
+    expect(res.statusCode).toEqual(204); // No content expected for a successful update
   });
 
   // Test to ensure that restricted fields cannot be updated
@@ -146,9 +144,9 @@ describe('User Routes', () => {
       .put('/v1/user/self')
       .set('Authorization', authHeader)
       .send({
-        email: 'newemail@example.com',  // Attempt to update restricted field
+        email: 'newemail@example.com', // Attempt to update restricted field
       });
 
-    expect(res.statusCode).toEqual(400);  // Expecting 400 Bad Request for restricted field update
+    expect(res.statusCode).toEqual(400); // Expecting 400 Bad Request for restricted field update
   });
 });
