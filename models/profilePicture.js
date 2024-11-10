@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
-const User = require('./user');
+const User = require('./user');  // Ensure the User model is properly required here
 
 const ProfilePicture = sequelize.define('ProfilePicture', {
   id: {
@@ -12,7 +12,7 @@ const ProfilePicture = sequelize.define('ProfilePicture', {
     type: DataTypes.UUID,
     allowNull: false,
     references: {
-      model: User,
+      model: User,  // Reference User model
       key: 'id',
     },
     unique: true,
@@ -34,7 +34,7 @@ const ProfilePicture = sequelize.define('ProfilePicture', {
   tableName: 'image',
 });
 
-// Define associations after exporting
+// Define the association after both models are fully loaded
 ProfilePicture.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 module.exports = ProfilePicture;
