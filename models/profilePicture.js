@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
-const User = require('./user');
+const User = require('./user');  // Ensure the correct path to the User model
 
 const ProfilePicture = sequelize.define('ProfilePicture', {
   id: {
