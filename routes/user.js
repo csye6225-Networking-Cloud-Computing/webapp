@@ -341,5 +341,32 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
     res.status(500).end();
   }
 });
+// GET /v1/user/verify - Verify user's email
+router.get('/verify', async (req, res) => {
+  const { user: userId, token } = req.query;
+
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify the token (you need to implement this logic)
+    const isValidToken = await verifyToken(userId, token);
+    if (!isValidToken) {
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+
+    // Update user's verification status
+    user.verified = true;
+    await user.save();
+
+    res.status(200).json({ message: 'Email verified successfully' });
+  } catch (error) {
+    console.error('Verification error:', error);
+    res.status(500).json({ message: 'An error occurred during verification' });
+  }
+});
 
 module.exports = router;
+
