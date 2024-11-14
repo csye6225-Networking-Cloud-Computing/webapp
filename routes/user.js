@@ -42,6 +42,28 @@ const checkDatabaseConnection = async (req, res, next) => {
   }
 };
 
+// Token verification function
+async function verifyToken(userId, token) {
+  try {
+      const user = await User.findByPk(userId);
+      
+      if (!user) {
+          return false; // User not found
+      }
+
+      // Check if the token matches and if it has not expired
+      return user.verificationToken === token && !isTokenExpired(user.tokenExpiration);
+  } catch (error) {
+      console.error('Error verifying token:', error);
+      return false;
+  }
+}
+
+// Function to check if the token has expired
+function isTokenExpired(expirationTime) {
+  return Date.now() > new Date(expirationTime).getTime();
+}
+
 // Define regex patterns
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[A-Za-z]+$/;
@@ -273,6 +295,9 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const token = crypto.randomBytes(16).toString('hex');
+    const tokenExpiration = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24-hour expiration
+
     const newUser = await User.create({
       email,
       password: hashedPassword,
@@ -280,7 +305,9 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
       lastName: last_name,
       account_created: new Date(),
       account_updated: new Date(),
-      verified: false, // Set verified to false for new users
+      verified: false,
+      verificationToken: token,
+      tokenExpiration: tokenExpiration,
     });
 
     // Publish a message to SNS for email verification
@@ -342,37 +369,31 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
   }
 });
 // GET /v1/user/verify - Verify user's email
-router.get('/v1/user/verify', checkDatabaseConnection, async (req, res) => {
+// Route for email verification
+router.get('/verify', checkDatabaseConnection, async (req, res) => {
   const start = Date.now();
   const { user: userId, token } = req.query;
 
   try {
-    const user = await timedOperation(() => User.findByPk(userId), 'DBQuery');
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+      const user = await User.findByPk(userId);
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
 
-    // Verify the token (implement this function)
-    const isValidToken = await verifyToken(userId, token);
-    if (!isValidToken) {
-      return res.status(400).json({ message: 'Invalid or expired token' });
-    }
+      const isValidToken = await verifyToken(userId, token);
+      if (!isValidToken) {
+          return res.status(400).json({ message: 'Invalid or expired token' });
+      }
 
-    // Update user's verification status
-    user.verified = true;
-    await timedOperation(() => user.save(), 'DBQuery');
+      user.verified = true;
+      await user.save();
 
-    const duration = Date.now() - start;
-    logMetric('API_GET_verify_ExecutionTime', duration);
-    statsdClient.timing('api.get.verify.execution_time', duration);
-
-    res.status(200).json({ message: 'Email verified successfully' });
+      const duration = Date.now() - start;
+      console.log(`Verification time: ${duration} ms`);
+      res.status(200).json({ message: 'Email verified successfully' });
   } catch (error) {
-    console.error('Verification error:', error);
-    const duration = Date.now() - start;
-    logMetric('API_GET_verify_ExecutionTime', duration);
-    statsdClient.timing('api.get.verify.execution_time', duration);
-    res.status(500).json({ message: 'An error occurred during verification' });
+      console.error('Verification error:', error);
+      res.status(500).json({ message: 'An error occurred during verification' });
   }
 });
 
