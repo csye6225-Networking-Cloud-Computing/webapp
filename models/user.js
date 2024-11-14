@@ -1,6 +1,4 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
-
+// In your User model file
 const User = sequelize.define('User', {
   id: {
     type: DataTypes.UUID,
@@ -27,6 +25,10 @@ const User = sequelize.define('User', {
   lastName: {
     type: DataTypes.STRING,
     allowNull: false,
+  },
+  verified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
   },
 }, {
   timestamps: true,

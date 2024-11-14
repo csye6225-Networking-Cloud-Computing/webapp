@@ -14,6 +14,23 @@ const router = express.Router();
 const s3 = new AWS.S3({ region: process.env.AWS_REGION || 'us-east-1' });
 const statsdClient = new StatsD({ host: process.env.STATSD_HOST || 'localhost', port: 8125 });
 const bucketName = process.env.S3_BUCKET_NAME;
+// Publish verification message to SNS
+const sns = new AWS.SNS({ region: process.env.AWS_REGION });
+
+const publishVerificationMessage = async (userId, email) => {
+  const message = JSON.stringify({ userId, email });
+  const params = {
+    Message: message,
+    TopicArn: process.env.SNS_TOPIC_ARN,
+  };
+
+  try {
+    await sns.publish(params).promise();
+    console.log(`Verification message published to SNS for user ${email}`);
+  } catch (error) {
+    console.error(`Failed to publish verification message for user ${email}:`, error);
+  }
+};
 
 // Middleware to check database connection and return 503 if down
 const checkDatabaseConnection = async (req, res, next) => {
@@ -148,8 +165,15 @@ const validateNoBodyOrParams = (req, res, next) => {
   next();
 };
 
+const checkVerificationStatus = (req, res, next) => {
+  if (!req.user.verified) {
+    return res.status(403).json({ message: 'Email verification required' });
+  }
+  next();
+};
+
 // POST /v1/user/self/pic - Upload profile picture
-router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('profilePic'), async (req, res) => {
+router.post('/self/pic', authenticate, checkDatabaseConnection, checkVerificationStatus, upload.single('profilePic'), async (req, res) => {
   const userId = req.user.id;
   try {
     const existingPicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId } }), 'DBQuery');
@@ -194,7 +218,7 @@ router.post('/self/pic', authenticate, checkDatabaseConnection, upload.single('p
 });
 
 // GET /v1/user/self/pic - Retrieve profile picture metadata
-router.get('/self/pic', validateNoBodyOrParams, authenticate, checkDatabaseConnection, async (req, res) => {
+router.get('/self/pic', validateNoBodyOrParams, authenticate, checkDatabaseConnection, checkVerificationStatus, async (req, res) => {
   try {
     const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery');
     if (!profilePicture) {
@@ -214,7 +238,7 @@ router.get('/self/pic', validateNoBodyOrParams, authenticate, checkDatabaseConne
 });
 
 // DELETE /v1/user/self/pic - Delete profile picture
-router.delete('/self/pic', authenticate, checkDatabaseConnection, async (req, res) => {
+router.delete('/self/pic', authenticate, checkDatabaseConnection, checkVerificationStatus, async (req, res) => {
   try {
     const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery');
     if (!profilePicture) {
@@ -243,23 +267,24 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
   }
 
   try {
-    const existingUser = await timedOperation(() => User.findOne({ where: { email } }), 'DBQuery');
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).end();
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await timedOperation(() =>
-      User.create({
-        email,
-        password: hashedPassword,
-        firstName: first_name,
-        lastName: last_name,
-        account_created: new Date(),
-        account_updated: new Date(),
-      }),
-      'DBQuery'
-    );
+    const newUser = await User.create({
+      email,
+      password: hashedPassword,
+      firstName: first_name,
+      lastName: last_name,
+      account_created: new Date(),
+      account_updated: new Date(),
+      verified: false, // Set verified to false for new users
+    });
+
+    // Publish a message to SNS for email verification
+    await publishVerificationMessage(newUser.id, newUser.email);
 
     const { password: _, ...userResponse } = newUser.toJSON();
     res.status(201).json({
@@ -268,6 +293,7 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
       account_updated: convertToEST(newUser.account_updated),
     });
   } catch (error) {
+    console.error(error);
     res.status(500).end();
   }
 });
