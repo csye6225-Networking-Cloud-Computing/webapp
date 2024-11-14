@@ -42,28 +42,6 @@ const checkDatabaseConnection = async (req, res, next) => {
   }
 };
 
-// Token verification function
-async function verifyToken(userId, token) {
-  try {
-      const user = await User.findByPk(userId);
-      
-      if (!user) {
-          return false; // User not found
-      }
-
-      // Check if the token matches and if it has not expired
-      return user.verificationToken === token && !isTokenExpired(user.tokenExpiration);
-  } catch (error) {
-      console.error('Error verifying token:', error);
-      return false;
-  }
-}
-
-// Function to check if the token has expired
-function isTokenExpired(expirationTime) {
-  return Date.now() > new Date(expirationTime).getTime();
-}
-
 // Define regex patterns
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[A-Za-z]+$/;
@@ -281,6 +259,7 @@ router.delete('/self/pic', authenticate, checkDatabaseConnection, checkVerificat
 });
 
 // POST /v1/users - Create a new user
+// POST /v1/users - Create a new user
 router.post('/', checkDatabaseConnection, async (req, res) => {
   const { first_name, last_name, password, email } = req.body;
 
@@ -295,8 +274,6 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const token = crypto.randomBytes(16).toString('hex');
-    const tokenExpiration = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24-hour expiration
 
     const newUser = await User.create({
       email,
@@ -305,9 +282,7 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
       lastName: last_name,
       account_created: new Date(),
       account_updated: new Date(),
-      verified: false,
-      verificationToken: token,
-      tokenExpiration: tokenExpiration,
+      verified: false
     });
 
     // Publish a message to SNS for email verification
@@ -324,6 +299,7 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
     res.status(500).end();
   }
 });
+
 
 // GET /v1/users/self - Retrieve authenticated user's info
 router.get('/self', validateNoBodyOrParams, authenticate, checkDatabaseConnection, async (req, res) => {
@@ -371,31 +347,24 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
 // GET /v1/user/verify - Verify user's email
 // Route for email verification
 router.get('/verify', checkDatabaseConnection, async (req, res) => {
-  const start = Date.now();
-  const { user: userId, token } = req.query;
+  const { user: userId } = req.query;
 
   try {
-      const user = await User.findByPk(userId);
-      if (!user) {
-          return res.status(404).json({ message: 'User not found' });
-      }
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
-      const isValidToken = await verifyToken(userId, token);
-      if (!isValidToken) {
-          return res.status(400).json({ message: 'Invalid or expired token' });
-      }
+    user.verified = true;
+    await user.save();
 
-      user.verified = true;
-      await user.save();
-
-      const duration = Date.now() - start;
-      console.log(`Verification time: ${duration} ms`);
-      res.status(200).json({ message: 'Email verified successfully' });
+    res.status(200).json({ message: 'Email verified successfully' });
   } catch (error) {
-      console.error('Verification error:', error);
-      res.status(500).json({ message: 'An error occurred during verification' });
+    console.error('Verification error:', error);
+    res.status(500).json({ message: 'An error occurred during verification' });
   }
 });
+
 
 module.exports = router;
 
