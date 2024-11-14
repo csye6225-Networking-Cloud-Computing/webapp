@@ -342,16 +342,17 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
   }
 });
 // GET /v1/user/verify - Verify user's email
-router.get('/verify', async (req, res) => {
+router.get('/v1/user/verify', checkDatabaseConnection, async (req, res) => {
+  const start = Date.now();
   const { user: userId, token } = req.query;
 
   try {
-    const user = await User.findByPk(userId);
+    const user = await timedOperation(() => User.findByPk(userId), 'DBQuery');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Verify the token (you need to implement this logic)
+    // Verify the token (implement this function)
     const isValidToken = await verifyToken(userId, token);
     if (!isValidToken) {
       return res.status(400).json({ message: 'Invalid or expired token' });
@@ -359,11 +360,18 @@ router.get('/verify', async (req, res) => {
 
     // Update user's verification status
     user.verified = true;
-    await user.save();
+    await timedOperation(() => user.save(), 'DBQuery');
+
+    const duration = Date.now() - start;
+    logMetric('API_GET_verify_ExecutionTime', duration);
+    statsdClient.timing('api.get.verify.execution_time', duration);
 
     res.status(200).json({ message: 'Email verified successfully' });
   } catch (error) {
     console.error('Verification error:', error);
+    const duration = Date.now() - start;
+    logMetric('API_GET_verify_ExecutionTime', duration);
+    statsdClient.timing('api.get.verify.execution_time', duration);
     res.status(500).json({ message: 'An error occurred during verification' });
   }
 });
