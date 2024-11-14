@@ -1,10 +1,12 @@
-// In your User model file
+// models/user.js
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');  // Ensure correct path here
+
 const User = sequelize.define('User', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
-    readOnly: true
   },
   email: {
     type: DataTypes.STRING,
@@ -35,7 +37,6 @@ const User = sequelize.define('User', {
   createdAt: 'account_created',
   updatedAt: 'account_updated',
   tableName: 'user',
-  readOnly: true
 });
 
 module.exports = User;
