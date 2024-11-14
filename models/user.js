@@ -1,12 +1,12 @@
+// models/user.js
 const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const { sequelize } = require('../config/database');  // Ensure correct path here
 
 const User = sequelize.define('User', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
-    readOnly: true
   },
   email: {
     type: DataTypes.STRING,
@@ -28,12 +28,15 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  verified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
 }, {
   timestamps: true,
   createdAt: 'account_created',
   updatedAt: 'account_updated',
   tableName: 'user',
-  readOnly: true
 });
 
 module.exports = User;
