@@ -35,16 +35,16 @@ jobs:
     - name: Fetch Latest Launch Template ID
       id: get_launch_template_id
       run: |
-        export AWS_REGION="${{ secrets.AWS_REGION }}"
-        export AWS_ACCESS_KEY_ID="${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', matrix.environment)] }}"
-        export AWS_SECRET_ACCESS_KEY="${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', matrix.environment)] }}"
-        
         LAUNCH_TEMPLATE_ID=$(aws ec2 describe-launch-templates \
           --query "LaunchTemplates[?contains(LaunchTemplateName, '${{ matrix.environment }}')].LaunchTemplateId" \
           --output text)
         
         echo "LAUNCH_TEMPLATE_ID=${LAUNCH_TEMPLATE_ID}"
         echo "LAUNCH_TEMPLATE_ID=${LAUNCH_TEMPLATE_ID}" >> $GITHUB_ENV
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', matrix.environment)] }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', matrix.environment)] }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
 
     - name: Fetch Latest Auto Scaling Group Name
       id: get_asg_name
@@ -55,6 +55,10 @@ jobs:
         
         echo "AUTO_SCALING_GROUP_NAME=${ASG_NAME}"
         echo "AUTO_SCALING_GROUP_NAME=${ASG_NAME}" >> $GITHUB_ENV
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', matrix.environment)] }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', matrix.environment)] }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
 
     - name: Create new Launch Template version
       run: |
@@ -64,6 +68,10 @@ jobs:
           --version-description "New version with updated AMI" \
           --source-version '$Latest' \
           --launch-template-data '{"ImageId":"'$AMI_ID'"}'
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', matrix.environment)] }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', matrix.environment)] }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
 
     - name: Start Instance Refresh
       run: |
@@ -71,7 +79,12 @@ jobs:
           --auto-scaling-group-name "${{ env.AUTO_SCALING_GROUP_NAME }}" \
           --preferences '{"MinHealthyPercentage": 90}')
         REFRESH_ID=$(echo $INSTANCE_REFRESH | jq -r '.InstanceRefreshId')
-        echo "REFRESH_ID=$REFRESH_ID" >> $GITHUB_ENV
+        echo "REFRESH_ID=${REFRESH_ID}"
+        echo "REFRESH_ID=${REFRESH_ID}" >> $GITHUB_ENV
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', matrix.environment)] }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', matrix.environment)] }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
 
     - name: Wait for Instance Refresh to Complete
       run: |
@@ -91,3 +104,7 @@ jobs:
           fi
           sleep 30
         done
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', matrix.environment)] }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', matrix.environment)] }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
