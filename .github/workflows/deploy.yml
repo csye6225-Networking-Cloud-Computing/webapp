@@ -22,6 +22,16 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y awscli jq
 
+    # Debugging step to verify AWS CLI configuration
+    - name: Verify AWS CLI Configuration
+      run: |
+        aws configure list
+        aws sts get-caller-identity
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', matrix.environment)] }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', matrix.environment)] }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+
     - name: Fetch Latest Launch Template ID
       id: get_launch_template_id
       run: |
@@ -46,7 +56,6 @@ jobs:
         echo "AUTO_SCALING_GROUP_NAME=${ASG_NAME}"
         echo "AUTO_SCALING_GROUP_NAME=${ASG_NAME}" >> $GITHUB_ENV
 
-    # Remaining steps, using ${{ env.LAUNCH_TEMPLATE_ID }} and ${{ env.AUTO_SCALING_GROUP_NAME }}
     - name: Create new Launch Template version
       run: |
         AMI_ID=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d ":" -f2)
