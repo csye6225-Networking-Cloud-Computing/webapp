@@ -1,0 +1,84 @@
+name: CI/CD for Web Application - Deploy
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [dev, demo]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up AWS CLI
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y awscli jq
+
+    - name: Fetch Latest Launch Template ID
+      id: get_launch_template_id
+      run: |
+        export AWS_REGION="${{ secrets.AWS_REGION }}"
+        export AWS_ACCESS_KEY_ID="${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', matrix.environment)] }}"
+        export AWS_SECRET_ACCESS_KEY="${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', matrix.environment)] }}"
+        
+        LAUNCH_TEMPLATE_ID=$(aws ec2 describe-launch-templates \
+          --query "LaunchTemplates[?contains(LaunchTemplateName, '${{ matrix.environment }}')].LaunchTemplateId" \
+          --output text)
+        
+        echo "LAUNCH_TEMPLATE_ID=${LAUNCH_TEMPLATE_ID}"
+        echo "LAUNCH_TEMPLATE_ID=${LAUNCH_TEMPLATE_ID}" >> $GITHUB_ENV
+
+    - name: Fetch Latest Auto Scaling Group Name
+      id: get_asg_name
+      run: |
+        ASG_NAME=$(aws autoscaling describe-auto-scaling-groups \
+          --query "AutoScalingGroups[?contains(AutoScalingGroupName, '${{ matrix.environment }}')].AutoScalingGroupName" \
+          --output text)
+        
+        echo "AUTO_SCALING_GROUP_NAME=${ASG_NAME}"
+        echo "AUTO_SCALING_GROUP_NAME=${ASG_NAME}" >> $GITHUB_ENV
+
+    # Remaining steps, using ${{ env.LAUNCH_TEMPLATE_ID }} and ${{ env.AUTO_SCALING_GROUP_NAME }}
+    - name: Create new Launch Template version
+      run: |
+        AMI_ID=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d ":" -f2)
+        aws ec2 create-launch-template-version \
+          --launch-template-id "${{ env.LAUNCH_TEMPLATE_ID }}" \
+          --version-description "New version with updated AMI" \
+          --source-version '$Latest' \
+          --launch-template-data '{"ImageId":"'$AMI_ID'"}'
+
+    - name: Start Instance Refresh
+      run: |
+        INSTANCE_REFRESH=$(aws autoscaling start-instance-refresh \
+          --auto-scaling-group-name "${{ env.AUTO_SCALING_GROUP_NAME }}" \
+          --preferences '{"MinHealthyPercentage": 90}')
+        REFRESH_ID=$(echo $INSTANCE_REFRESH | jq -r '.InstanceRefreshId')
+        echo "REFRESH_ID=$REFRESH_ID" >> $GITHUB_ENV
+
+    - name: Wait for Instance Refresh to Complete
+      run: |
+        while true; do
+          STATUS=$(aws autoscaling describe-instance-refreshes \
+            --auto-scaling-group-name "${{ env.AUTO_SCALING_GROUP_NAME }}" \
+            --instance-refresh-ids "${{ env.REFRESH_ID }}" \
+            --query 'InstanceRefreshes[0].Status' \
+            --output text)
+          echo "Instance Refresh Status: $STATUS"
+          if [ "$STATUS" = "Successful" ]; then
+            echo "Instance refresh completed successfully"
+            break
+          elif [ "$STATUS" = "Failed" ]; then
+            echo "Instance refresh failed"
+            exit 1
+          fi
+          sleep 30
+        done
