@@ -23,9 +23,9 @@ jobs:
 
       # Setup Packer
       - name: Setup Packer
-        uses: hashicorp/setup-packer@v1
+        uses: hashicorp/setup-packer@v2
         with:
-          version: '1.9.4'
+          packer_version: '1.9.4'
 
       # Create webapp.zip
       - name: Create webapp.zip
