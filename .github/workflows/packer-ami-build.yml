@@ -117,7 +117,7 @@ jobs:
       - name: Get Launch Template ID
         id: get_launch_template
         run: |
-          LAUNCH_TEMPLATE_NAME="demo-app-lb"  # Replace with your actual Launch Template name
+          LAUNCH_TEMPLATE_NAME="demo-launch-template"  # Replace with your actual Launch Template name
           LAUNCH_TEMPLATE_ID=$(aws ec2 describe-launch-templates \
             --filters "Name=launch-template-name,Values=$LAUNCH_TEMPLATE_NAME" \
             --query 'LaunchTemplates[0].LaunchTemplateId' --output text)
