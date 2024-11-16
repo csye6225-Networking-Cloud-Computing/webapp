@@ -86,4 +86,9 @@ build {
       "sudo /tmp/install_webapp.sh"
     ]
   }
+
+  # Post-Processor to generate manifest.json
+  post-processor "manifest" {
+    output = "manifest.json"
+  }
 }
