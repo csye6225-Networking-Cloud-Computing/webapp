@@ -29,24 +29,6 @@ jobs:
           zip -r webapp.zip . -x "*.git*" "packer-template/*" ".github/*"
           mv webapp.zip packer-template/
 
-      - name: List repository contents
-        run: |
-          echo "Root directory contents:"
-          ls -la
-          echo "packer-template directory contents:"
-          ls -la packer-template
-
-      - name: Check necessary files
-        run: |
-          for file in webapp.zip my-app.service install_webapp.sh; do
-            if [ ! -f "packer-template/$file" ]; then
-              echo "$file not found in packer-template directory"
-              echo "Current directory structure:"
-              find . -type f
-              exit 1
-            fi
-          done
-
       - name: Create variables file
         run: |
           cat << EOF > packer-template/variables.pkrvars.hcl
@@ -54,7 +36,7 @@ jobs:
           instance_type = "t2.small"
           ssh_username = "ubuntu"
           source_ami = "ami-0866a3c8686eaeeba"
-          subnet_id = "subnet-063beaf3ff4e82a4d"
+          subnet_id = "${{ secrets.SUBNET_ID }}"
           EOF
 
       - name: Initialize Packer
@@ -69,19 +51,32 @@ jobs:
       - name: Build AMI
         run: |
           cd packer-template
-          packer build -debug -var-file=variables.pkrvars.hcl \
+          packer build -machine-readable -var-file=variables.pkrvars.hcl \
             ubuntu-mysql.pkr.hcl
+
+      - name: Verify manifest.json
+        run: |
+          if [ ! -f packer-template/manifest.json ]; then
+            echo "Error: manifest.json not found!"
+            exit 1
+          else
+            echo "manifest.json found. Proceeding with the workflow."
+          fi
 
       - name: Get AMI ID
         id: get-ami-id
         run: |
           AMI_ID=$(jq -r '.builds[-1].artifact_id' packer-template/manifest.json | cut -d ":" -f2)
           echo "ami_id=$AMI_ID" >> $GITHUB_OUTPUT
+          echo "AMI_ID=$AMI_ID" >> $GITHUB_ENV
+
+      - name: Export AMI ID
+        run: echo "AMI_ID=${{ env.AMI_ID }}"
 
       - name: Clean up
         if: always()
         run: |
-          rm -f packer-template/webapp.zip
+          rm -f packer-template/webapp.zip packer-template/variables.pkrvars.hcl
 
       - name: Debug Output
         if: failure()
