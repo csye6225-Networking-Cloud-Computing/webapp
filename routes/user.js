@@ -9,6 +9,7 @@ const ProfilePicture = require('../models/profilePicture');
 const authenticate = require('../middleware/authenticate');
 const { sequelize } = require('../config/database');
 const StatsD = require('node-statsd');
+const crypto = require('crypto');
 
 const router = express.Router();
 const s3 = new AWS.S3({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -17,8 +18,9 @@ const bucketName = process.env.S3_BUCKET_NAME;
 // Publish verification message to SNS
 const sns = new AWS.SNS({ region: process.env.AWS_REGION });
 
-const publishVerificationMessage = async (userId, email) => {
-  const message = JSON.stringify({ userId, email });
+// Publish verification message to SNS
+const publishVerificationMessage = async (userId, email, token) => {
+  const message = JSON.stringify({ userId, email, token });
   const params = {
     Message: message,
     TopicArn: process.env.SNS_TOPIC_ARN,
@@ -45,6 +47,8 @@ const checkDatabaseConnection = async (req, res, next) => {
 // Define regex patterns
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[A-Za-z]+$/;
+
+const TOKEN_EXPIRATION_TIME = 2 * 60 * 1000; // 2 minutes in milliseconds
 
 // Set up multer for file uploads
 const storage = multer.memoryStorage();
@@ -259,22 +263,34 @@ router.delete('/self/pic', authenticate, checkDatabaseConnection, checkVerificat
 });
 
 // POST /v1/users - Create a new user
-// POST /v1/users - Create a new user
 router.post('/', checkDatabaseConnection, async (req, res) => {
   const { first_name, last_name, password, email } = req.body;
 
-  if (!email || !emailRegex.test(email) || !first_name || !nameRegex.test(first_name) || !last_name || !nameRegex.test(last_name) || !password) {
+  // Input validation
+  if (
+    !email || !emailRegex.test(email) ||
+    !first_name || !nameRegex.test(first_name) ||
+    !last_name || !nameRegex.test(last_name) ||
+    !password
+  ) {
     return res.status(400).end();
   }
 
   try {
+    // Check if the user already exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).end();
     }
 
+    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Generate a unique verification token
+    const token = crypto.randomBytes(16).toString('hex');
+    const expiresAt = new Date(Date.now() + TOKEN_EXPIRATION_TIME);
+
+    // Create a new user with verification token and expiration
     const newUser = await User.create({
       email,
       password: hashedPassword,
@@ -282,13 +298,16 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
       lastName: last_name,
       account_created: new Date(),
       account_updated: new Date(),
-      verified: false
+      verified: false, // Set verified to false initially
+      verification_token: token,
+      token_expires_at: expiresAt,
     });
 
-    // Publish a message to SNS for email verification
-    await publishVerificationMessage(newUser.id, newUser.email);
+    // Call the global publishVerificationMessage function
+    await publishVerificationMessage(newUser.id, newUser.email, token);
 
-    const { password: _, ...userResponse } = newUser.toJSON();
+    // Prepare the response without sensitive fields
+    const { password: _, verification_token: __, token_expires_at: ___, ...userResponse } = newUser.toJSON();
     res.status(201).json({
       ...userResponse,
       account_created: convertToEST(newUser.account_created),
@@ -298,9 +317,8 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
     console.error(error);
     res.status(500).end();
   }
-});
-
-
+}); // Close the router.post function
+    
 // GET /v1/users/self - Retrieve authenticated user's info
 router.get('/self', validateNoBodyOrParams, authenticate, checkDatabaseConnection, async (req, res) => {
   try {
@@ -344,27 +362,94 @@ router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
     res.status(500).end();
   }
 });
-// GET /v1/user/verify - Verify user's email
-// Route for email verification
-router.get('/verify', checkDatabaseConnection, async (req, res) => {
-  const { user: userId } = req.query;
+
+// POST /v1/users/resend-verification - Resend verification email
+router.post('/resend-verification', checkDatabaseConnection, async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email address.' });
+  }
 
   try {
-    const user = await User.findByPk(userId);
+    const user = await User.findOne({ where: { email } });
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(400).json({ error: 'Invalid email address.' });
     }
 
-    user.verified = true;
+    if (user.verified) {
+      return res.status(400).json({ message: 'Email is already verified.' });
+    }
+
+    // Generate a new verification token
+    const token = crypto.randomBytes(16).toString('hex');
+    const expiresAt = new Date(Date.now() + TOKEN_EXPIRATION_TIME);
+
+    user.verification_token = token;
+    user.token_expires_at = expiresAt;
     await user.save();
 
-    res.status(200).json({ message: 'Email verified successfully' });
+    // Publish verification message to SNS
+    await publishVerificationMessage(user.id, user.email, token);
+
+    res.status(200).json({ message: 'Verification email resent successfully.' });
   } catch (error) {
-    console.error('Verification error:', error);
-    res.status(500).json({ message: 'An error occurred during verification' });
+    console.error('Error resending verification email:', error);
+    res.status(500).json({ error: 'An error occurred. Please try again later.' });
   }
 });
+// GET /v1/user/verify - Verify user's email
+// GET /v1/user/verify - Verify user's email
+router.get('/verify', checkDatabaseConnection, async (req, res) => {
+  const { user: userId, token } = req.query;
 
+  // Validate presence of userId and token
+  if (!userId || !token) {
+    return res.status(400).json({ message: 'Invalid verification link. Missing parameters.' });
+  }
+
+  try {
+    // Find the user by ID
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      // Do not reveal whether the user exists
+      return res.status(400).json({ message: 'Invalid verification link.' });
+    }
+
+    // Check if the user is already verified
+    if (user.verified) {
+      return res.status(200).json({ message: 'Your email is already verified.' });
+    }
+
+    // Validate the token
+    if (user.verification_token !== token) {
+      return res.status(400).json({ message: 'Invalid verification token.' });
+    }
+
+    // Check if the token has expired
+    if (new Date(user.token_expires_at) < new Date()) {
+      return res.status(400).json({ 
+        message: 'Verification link has expired. Please request a new verification email.',
+        resendVerification: true // Flag to indicate that resending is possible
+      });
+    }
+
+    // All validations passed; update the user's verified status
+    user.verified = true;
+    user.verification_token = null;
+    user.token_expires_at = null;
+    await user.save();
+
+    // Optionally, redirect the user to a confirmation page
+    // res.redirect('https://yourdomain.com/verification-success');
+
+    res.status(200).json({ message: 'Email verified successfully.' });
+  } catch (error) {
+    console.error('Verification error:', error);
+    res.status(500).json({ message: 'An error occurred during verification. Please try again later.' });
+  }
+});
 
 module.exports = router;
 
