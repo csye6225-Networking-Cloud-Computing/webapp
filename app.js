@@ -156,7 +156,7 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Sync Sequelize schema and log errors to CloudWatch
-sequelize.sync({ force: true })
+sequelize.sync({ alter: true })
     .then(() => logToFile('Database synchronized successfully'))
     .catch(err => {
         logToFile(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
