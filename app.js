@@ -194,7 +194,7 @@ unsupportedMethods.forEach((method) => {
 
 // For the /healthz route
 unsupportedMethods.forEach((method) => {
-    app[method.toLowerCase()]('/healthz', checkDBStatusMiddleware, (req, res) => {
+    app[method.toLowerCase()]('/healthzzz', checkDBStatusMiddleware, (req, res) => {
         res.set('Allow', 'GET');  // Specify the allowed method for healthz
         return res.status(405).end();  // Return 405 Method Not Allowed
     });
@@ -213,7 +213,7 @@ unsupportedMethodsForPic.forEach((method) => {
 app.use(cors());
 
 // Define routes and add database status middleware
-app.use('/healthz', checkDBStatusMiddleware, healthRoutes);
+app.use('/healthzzz', checkDBStatusMiddleware, healthRoutes);
 app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
 
 // Add a 404 handler for undefined routes
