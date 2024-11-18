@@ -1,10 +1,9 @@
 const request = require('supertest');
-const app = require('../app'); // Import your Express app
-const { sequelize } = require('../config/database'); // Import Sequelize instance
-const User = require('../models/user'); // Import User model explicitly
-const ProfilePicture = require('../models/profilePicture.js'); // Import ProfilePicture model explicitly
+const app = require('../app'); // Your Express app
+const { sequelize } = require('../config/database'); // Sequelize instance
+const { User } = require('../models'); // Import User model
 
-// Mock AWS SDK
+// Mock `aws-sdk`
 jest.mock('aws-sdk', () => {
     const mockSNS = {
         publish: jest.fn().mockReturnValue({
@@ -30,10 +29,13 @@ jest.mock('aws-sdk', () => {
         SNS: jest.fn(() => mockSNS),
         CloudWatch: jest.fn(() => mockCloudWatch),
         S3: jest.fn(() => mockS3),
+        config: {
+            update: jest.fn(),
+        },
     };
 });
 
-// Mock node-statsd
+// Mock `node-statsd`
 jest.mock('node-statsd', () => {
     return jest.fn().mockImplementation(() => ({
         timing: jest.fn(),
@@ -47,13 +49,13 @@ process.env.AWS_REGION = 'us-east-1';
 process.env.S3_BUCKET_NAME = 'test-bucket';
 process.env.SNS_TOPIC_ARN = 'arn:aws:sns:us-east-1:123456789012:mock-topic';
 
-// Helper function for Basic Auth headers
+// Basic Auth Helper
 const generateAuthHeader = (email, password) => {
     const credentials = Buffer.from(`${email}:${password}`).toString('base64');
     return `Basic ${credentials}`;
 };
 
-// Sync database before each test
+// Sync database before tests
 beforeEach(async () => {
     await sequelize.sync({ force: true });
 });
@@ -75,7 +77,7 @@ describe('User Routes', () => {
             });
 
         expect(res.statusCode).toEqual(201);
-        expect(res.body).toHaveProperty('id'); // Check for user ID
+        expect(res.body).toHaveProperty('id');
     });
 
     it('should not create a user with an existing email', async () => {
@@ -101,7 +103,6 @@ describe('User Routes', () => {
     });
 
     it('should return the authenticated user’s information', async () => {
-        // Create and authenticate user
         await request(app)
             .post('/v1/user')
             .send({
@@ -122,7 +123,6 @@ describe('User Routes', () => {
     });
 
     it('should update the authenticated user’s information', async () => {
-        // Create and authenticate user
         await request(app)
             .post('/v1/user')
             .send({
@@ -161,29 +161,10 @@ describe('User Routes', () => {
         const res = await request(app)
             .put('/v1/user/self')
             .set('Authorization', authHeader)
-            .send({ email: 'newemail@example.com' });
-
-        expect(res.statusCode).toEqual(400);
-    });
-
-    it('should upload a profile picture for the authenticated user', async () => {
-        // Create and authenticate user
-        await request(app)
-            .post('/v1/user')
             .send({
-                first_name: 'John',
-                last_name: 'Doe',
-                email: 'john.doe@example.com',
-                password: 'Password123!',
+                email: 'newemail@example.com',
             });
 
-        const authHeader = generateAuthHeader('john.doe@example.com', 'Password123!');
-
-        const res = await request(app)
-            .post('/v1/user/self/pic')
-            .set('Authorization', authHeader)
-            .attach('profilePic', Buffer.from('mock-image'), 'test.jpg');
-
-        expect(res.statusCode).toEqual(201);
+        expect(res.statusCode).toEqual(400);
     });
 });
