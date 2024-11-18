@@ -1,44 +1,48 @@
-// __tests__/healthCheck.test.js
-
-// 1. Mock node-statsd to prevent open handles and network calls
-jest.mock('node-statsd', () => {
-  return jest.fn().mockImplementation(() => ({
-      timing: jest.fn(),
-      increment: jest.fn(),
-      close: jest.fn(),
-  }));
-});
-
-// 2. Import sequelize and set up the spy BEFORE requiring the app
-const { sequelize } = require('../config/database');
-jest.spyOn(sequelize, 'authenticate');
-
-// 3. Now, require the Express app after mocking
-const app = require('../app');
 const request = require('supertest');
+const app = require('../app'); // Adjust path to your main app file
+const { sequelize } = require('../config/database');
 
-describe('Health Check API Integration Tests for /healthzzz', () => {
-  // Reset mocks before each test to ensure isolation
-  beforeEach(() => {
-      sequelize.authenticate.mockReset();
+describe('Healthz Route Integration Tests', () => {
+  beforeAll(async () => {
+    // Ensure database connection before tests
+    await sequelize.authenticate();
   });
 
-  // Restore mocks and close connections after all tests
   afterAll(async () => {
-      sequelize.authenticate.mockRestore();
-      await sequelize.close();
+    // Close database connection after tests
+    await sequelize.close();
   });
 
-  describe('Unsupported Methods on /healthzzz', () => {
-      const unsupportedMethods = ['DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
+  test('GET /healthz should return 200 OK when database is connected', async () => {
+    const response = await request(app).get('/healthz');
+    
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-cache, no-store, must-revalidate');
+    expect(response.headers['pragma']).toBe('no-cache');
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+  });
 
-      unsupportedMethods.forEach((method) => {
-          it(`should return 405 Method Not Allowed for ${method} /healthzzz`, async () => {
-              const res = await request(app)[method.toLowerCase()]('/healthzzz');
+  test('Unsupported HTTP methods on /healthz should return 405', async () => {
+    const unsupportedMethods = ['post', 'put', 'delete', 'patch', 'head', 'options'];
+    
+    for (const method of unsupportedMethods) {
+      const response = await request(app)[method]('/healthz');
+      
+      expect(response.status).toBe(405);
+      expect(response.headers['allow']).toBe('GET');
+    }
+  });
 
-              expect(res.statusCode).toBe(405);
-              expect(res.headers['allow']).toBe('GET');
-          });
-      });
+  test('GET /healthz should return 503 if database is not connected', async () => {
+    // Mock database authentication to simulate connection failure
+    const originalAuthenticate = sequelize.authenticate;
+    sequelize.authenticate = jest.fn().mockRejectedValue(new Error('Database connection failed'));
+
+    const response = await request(app).get('/healthz');
+    
+    expect(response.status).toBe(503);
+
+    // Restore original authenticate method
+    sequelize.authenticate = originalAuthenticate;
   });
 });
