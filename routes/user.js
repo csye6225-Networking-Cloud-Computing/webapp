@@ -9,11 +9,14 @@ const ProfilePicture = require('../models/profilePicture');
 const authenticate = require('../middleware/authenticate');
 const { sequelize } = require('../config/database');
 const StatsD = require('node-statsd');
+const rateLimit = require('express-rate-limit'); // Added for rate limiting
+const { body, validationResult } = require('express-validator'); // Added for input validation
 
 const router = express.Router();
 const s3 = new AWS.S3({ region: process.env.AWS_REGION || 'us-east-1' });
 const statsdClient = new StatsD({ host: process.env.STATSD_HOST || 'localhost', port: 8125 });
 const bucketName = process.env.S3_BUCKET_NAME;
+
 // Publish verification message to SNS
 const sns = new AWS.SNS({ region: process.env.AWS_REGION });
 
@@ -38,7 +41,7 @@ const checkDatabaseConnection = async (req, res, next) => {
     await sequelize.authenticate();
     next();
   } catch (error) {
-    return res.status(503).end();
+    return res.status(503).end(); // Removed message
   }
 };
 
@@ -160,25 +163,29 @@ router.use((req, res, next) => {
 // Middleware to validate empty body and query parameters for GET requests
 const validateNoBodyOrParams = (req, res, next) => {
   if (Object.keys(req.body).length > 0 || Object.keys(req.query).length > 0) {
-    return res.status(400).json({ error: 'Body or query parameters not allowed' });
+    return res.status(400).end(); // Removed message
   }
   next();
 };
 
+// Middleware to check if user is verified
 const checkVerificationStatus = (req, res, next) => {
   if (!req.user.verified) {
-    return res.status(403).json({ message: 'Email verification required' });
+    return res.status(403).end(); // Removed message
   }
   next();
 };
 
+// Apply authentication and verification middleware to all routes under /self
+router.use('/self', authenticate, checkDatabaseConnection, checkVerificationStatus);
+
 // POST /v1/user/self/pic - Upload profile picture
-router.post('/self/pic', authenticate, checkDatabaseConnection, checkVerificationStatus, upload.single('profilePic'), async (req, res) => {
+router.post('/self/pic', upload.single('profilePic'), async (req, res) => {
   const userId = req.user.id;
   try {
     const existingPicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId } }), 'DBQuery');
     if (existingPicture) {
-      return res.status(400).end();
+      return res.status(400).end(); // Removed message
     }
 
     const fileName = `${Date.now()}-${req.file.originalname}`;
@@ -208,41 +215,41 @@ router.post('/self/pic', authenticate, checkDatabaseConnection, checkVerificatio
     res.status(201).json({
       file_name: req.file.originalname,
       id: profilePicture.id,
-      url: data.Location,
+      url: profilePicture.url, // Excluding email
       upload_date: convertToEST(new Date()),
       user_id: userId,
     });
   } catch (error) {
-    res.status(500).end();
+    res.status(500).end(); // Removed message
   }
 });
 
 // GET /v1/user/self/pic - Retrieve profile picture metadata
-router.get('/self/pic', validateNoBodyOrParams, authenticate, checkDatabaseConnection, checkVerificationStatus, async (req, res) => {
+router.get('/self/pic', validateNoBodyOrParams, async (req, res) => {
   try {
     const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery');
     if (!profilePicture) {
-      return res.status(404).end();
+      return res.status(404).end(); // Removed message
     }
 
     res.status(200).json({
       file_name: profilePicture.metadata.file_name,
       id: profilePicture.id,
-      url: profilePicture.url,
+      url: profilePicture.url, // Excluding email
       upload_date: convertToEST(profilePicture.metadata.upload_date),
       user_id: req.user.id,
     });
   } catch (error) {
-    res.status(500).end();
+    res.status(500).end(); // Removed message
   }
 });
 
 // DELETE /v1/user/self/pic - Delete profile picture
-router.delete('/self/pic', authenticate, checkDatabaseConnection, checkVerificationStatus, async (req, res) => {
+router.delete('/self/pic', async (req, res) => {
   try {
     const profilePicture = await timedOperation(() => ProfilePicture.findOne({ where: { userId: req.user.id } }), 'DBQuery');
     if (!profilePicture) {
-      return res.status(404).end();
+      return res.status(404).end(); // Removed message
     }
 
     const deleteParams = {
@@ -254,96 +261,131 @@ router.delete('/self/pic', authenticate, checkDatabaseConnection, checkVerificat
     await timedOperation(() => profilePicture.destroy(), 'DBQuery');
     res.status(204).end();
   } catch (error) {
-    res.status(500).end();
+    res.status(500).end(); // Removed message
   }
 });
 
-// POST /v1/users - Create a new user
-// POST /v1/users - Create a new user
-router.post('/', checkDatabaseConnection, async (req, res) => {
-  const { first_name, last_name, password, email } = req.body;
+// Rate limiter for registration and resend verification
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // limit each IP to 10 requests per windowMs
+  message: 'Too many requests from this IP, please try again after 15 minutes.', // You may remove this message if desired
+});
 
-  if (!email || !emailRegex.test(email) || !first_name || !nameRegex.test(first_name) || !last_name || !nameRegex.test(last_name) || !password) {
-    return res.status(400).end();
-  }
-
-  try {
-    const existingUser = await User.findOne({ where: { email } });
-    if (existingUser) {
-      return res.status(400).end();
+// POST /v1/users - Create a new user
+router.post(
+  '/',
+  authLimiter, // Apply rate limiter
+  checkDatabaseConnection,
+  [
+    body('email').isEmail(),
+    body('first_name').isAlpha(),
+    body('last_name').isAlpha(),
+    body('password').isLength({ min: 6 }),
+  ],
+  async (req, res) => {
+    // Handle validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).end(); // Removed message
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const { first_name, last_name, password, email } = req.body;
 
-    const newUser = await User.create({
-      email,
-      password: hashedPassword,
-      firstName: first_name,
-      lastName: last_name,
-      account_created: new Date(),
-      account_updated: new Date(),
-      verified: false
-    });
+    try {
+      const existingUser = await User.findOne({ where: { email } });
+      if (existingUser) {
+        return res.status(400).end(); // Removed message
+      }
 
-    // Publish a message to SNS for email verification
-    await publishVerificationMessage(newUser.id, newUser.email);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-    const { password: _, ...userResponse } = newUser.toJSON();
-    res.status(201).json({
-      ...userResponse,
-      account_created: convertToEST(newUser.account_created),
-      account_updated: convertToEST(newUser.account_updated),
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).end();
+      const newUser = await User.create({
+        email,
+        password: hashedPassword,
+        firstName: first_name,
+        lastName: last_name,
+        account_created: new Date(),
+        account_updated: new Date(),
+        verified: false
+      });
+
+      // Publish a message to SNS for email verification
+      await publishVerificationMessage(newUser.id, newUser.email);
+
+      const { password: _, email: userEmail, ...userResponse } = newUser.toJSON(); // Exclude email
+      res.status(201).json({
+        ...userResponse,
+        account_created: convertToEST(newUser.account_created),
+        account_updated: convertToEST(newUser.account_updated),
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).end(); // Removed message
+    }
   }
-});
-
+);
 
 // GET /v1/users/self - Retrieve authenticated user's info
-router.get('/self', validateNoBodyOrParams, authenticate, checkDatabaseConnection, async (req, res) => {
+router.get('/self', validateNoBodyOrParams, async (req, res) => {
   try {
     const user = await timedOperation(() => User.findByPk(req.user.id), 'DBQuery');
     if (!user) {
-      return res.status(404).end();
+      return res.status(404).end(); // Removed message
     }
 
-    const { password: _, ...userResponse } = user.toJSON();
+    const { password: _, email: userEmail, ...userResponse } = user.toJSON(); // Exclude email
     res.status(200).json({
       ...userResponse,
       account_created: convertToEST(user.account_created),
       account_updated: convertToEST(user.account_updated),
     });
   } catch (error) {
-    res.status(500).end();
+    res.status(500).end(); // Removed message
   }
 });
 
 // PUT /v1/users/self - Update the authenticated user's information
-router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
-  if (Object.keys(req.query).length > 0 || Object.keys(req.body).some(field => !['first_name', 'last_name', 'password'].includes(field))) {
-    return res.status(400).end();
-  }
-
-  try {
-    const user = await timedOperation(() => User.findByPk(req.user.id), 'DBQuery');
-    if (!user) {
-      return res.status(404).end();
+router.put(
+  '/self',
+  [
+    body('first_name').optional().isAlpha(),
+    body('last_name').optional().isAlpha(),
+    body('password').optional().isLength({ min: 6 }),
+  ],
+  async (req, res) => {
+    // Handle validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).end(); // Removed message
     }
 
-    if (req.body.first_name) user.firstName = req.body.first_name;
-    if (req.body.last_name) user.lastName = req.body.last_name;
-    if (req.body.password) user.password = await bcrypt.hash(req.body.password, 10);
+    // Ensure no query parameters are present and only allowed fields are being updated
+    const allowedFields = ['first_name', 'last_name', 'password'];
+    const invalidFields = Object.keys(req.body).filter(field => !allowedFields.includes(field));
+    if (Object.keys(req.query).length > 0 || invalidFields.length > 0) {
+      return res.status(400).end(); // Removed message
+    }
 
-    user.account_updated = new Date();
-    await timedOperation(() => user.save(), 'DBQuery');
+    try {
+      const user = await timedOperation(() => User.findByPk(req.user.id), 'DBQuery');
+      if (!user) {
+        return res.status(404).end(); // Removed message
+      }
 
-    res.status(204).end();
-  } catch (error) {
-    res.status(500).end();
-  }
+      if (req.body.first_name) user.firstName = req.body.first_name;
+      if (req.body.last_name) user.lastName = req.body.last_name;
+      if (req.body.password) user.password = await bcrypt.hash(req.body.password, 10);
+
+      user.account_updated = new Date();
+      await timedOperation(() => user.save(), 'DBQuery');
+
+      res.status(204).end();
+    } catch (error) {
+      res.status(500).end(); // Removed message
+    }
 });
+
 // GET /v1/user/verify - Verify user's email
 // Route for email verification
 router.get('/verify', checkDatabaseConnection, async (req, res) => {
@@ -352,19 +394,17 @@ router.get('/verify', checkDatabaseConnection, async (req, res) => {
   try {
     const user = await User.findByPk(userId);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).end(); // Removed message
     }
 
     user.verified = true;
     await user.save();
 
-    res.status(200).json({ message: 'Email verified successfully' });
+    res.status(200).end(); // Changed to end without message
   } catch (error) {
     console.error('Verification error:', error);
-    res.status(500).json({ message: 'An error occurred during verification' });
+    res.status(500).end(); // Removed message
   }
 });
 
-
 module.exports = router;
-
