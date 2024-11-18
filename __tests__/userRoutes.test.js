@@ -9,7 +9,7 @@ jest.mock('node-statsd', () => {
   }));
 });
 
-// 2. Import sequelize and spy on authenticate BEFORE requiring the app
+// 2. Import sequelize and set up the spy BEFORE requiring the app
 const { sequelize } = require('../config/database');
 jest.spyOn(sequelize, 'authenticate');
 
