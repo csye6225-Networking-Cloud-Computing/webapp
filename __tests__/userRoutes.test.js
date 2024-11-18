@@ -62,13 +62,19 @@ beforeAll(() => {
 
   // Mock CognitoIdentityServiceProvider.adminInitiateAuth for authentication
   AWSMock.mock('CognitoIdentityServiceProvider', 'adminInitiateAuth', (params, callback) => {
-      callback(null, { 
-          AuthenticationResult: { 
-              AccessToken: 'mocked-access-token',
-              IdToken: 'mocked-id-token',
-              RefreshToken: 'mocked-refresh-token',
-          }
-      });
+      const { USERNAME, PASSWORD } = params.AuthParameters;
+      // Assuming the test user has username 'john.doe@example.com' and password 'password123'
+      if (USERNAME === 'john.doe@example.com' && PASSWORD === 'password123') {
+          callback(null, { 
+              AuthenticationResult: { 
+                  AccessToken: 'mocked-access-token',
+                  IdToken: 'mocked-id-token',
+                  RefreshToken: 'mocked-refresh-token',
+              }
+          });
+      } else {
+          callback(new Error('Invalid credentials'), null);
+      }
   });
 
   // Add more AWS service mocks if your application uses them
@@ -120,8 +126,9 @@ describe('User Routes', () => {
           verified: true,
       });
 
-      // 9. Use the mocked AccessToken for authentication
-      const authHeader = `Bearer mocked-access-token`;
+      // 9. Use the mocked AccessToken for authentication via Basic Auth
+      const credentials = Buffer.from('john.doe@example.com:password123').toString('base64');
+      const authHeader = `Basic ${credentials}`;
 
       const res = await request(app)
           .get('/v1/user/self')
@@ -141,8 +148,9 @@ describe('User Routes', () => {
           verified: true,
       });
 
-      // 11. Use the mocked AccessToken for authentication
-      const authHeader = `Bearer mocked-access-token`;
+      // 11. Use the mocked AccessToken for authentication via Basic Auth
+      const credentials = Buffer.from('john.doe@example.com:password123').toString('base64');
+      const authHeader = `Basic ${credentials}`;
 
       const res = await request(app)
           .put('/v1/user/self')
@@ -166,8 +174,9 @@ describe('User Routes', () => {
           verified: true,
       });
 
-      // 13. Use the mocked AccessToken for authentication
-      const authHeader = `Bearer mocked-access-token`;
+      // 13. Use the mocked AccessToken for authentication via Basic Auth
+      const credentials = Buffer.from('john.doe@example.com:password123').toString('base64');
+      const authHeader = `Basic ${credentials}`;
 
       const res = await request(app)
           .put('/v1/user/self')
