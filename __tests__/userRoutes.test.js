@@ -2,7 +2,6 @@ const request = require('supertest');
 const app = require('../app');
 const { sequelize } = require('../config/database');
 const User = require('../models/user');
-const ProfilePicture = require('../models/profilePicture.js');
 
 // Mock AWS SDK to prevent errors in tests
 jest.mock('aws-sdk', () => {
@@ -16,9 +15,20 @@ jest.mock('aws-sdk', () => {
             promise: jest.fn().mockResolvedValue({}),
         }),
     };
+    const mockS3 = {
+        upload: jest.fn().mockReturnValue({
+            promise: jest.fn().mockResolvedValue({
+                Location: 'https://mock-bucket.s3.amazonaws.com/mock-key',
+            }),
+        }),
+        deleteObject: jest.fn().mockReturnValue({
+            promise: jest.fn().mockResolvedValue({}),
+        }),
+    };
     return {
         SNS: jest.fn(() => mockSNS),
         CloudWatch: jest.fn(() => mockCloudWatch),
+        S3: jest.fn(() => mockS3),
     };
 });
 
@@ -39,7 +49,7 @@ afterAll(async () => {
 describe('User Routes', () => {
     it('should create a new user', async () => {
         const res = await request(app)
-            .post('/v1/user')
+            .post('/v1/users') // Corrected endpoint
             .send({
                 first_name: 'John',
                 last_name: 'Doe',
@@ -62,7 +72,7 @@ describe('User Routes', () => {
         const authHeader = generateAuthHeader(user.email, 'password123');
 
         const res = await request(app)
-            .get('/v1/user/self')
+            .get('/v1/users/self') // Corrected endpoint
             .set('Authorization', authHeader);
 
         expect(res.statusCode).toEqual(200);
@@ -81,7 +91,7 @@ describe('User Routes', () => {
         const authHeader = generateAuthHeader(user.email, 'password123');
 
         const res = await request(app)
-            .put('/v1/user/self')
+            .put('/v1/users/self') // Corrected endpoint
             .set('Authorization', authHeader)
             .send({
                 first_name: 'Johnny',
@@ -104,7 +114,7 @@ describe('User Routes', () => {
         const authHeader = generateAuthHeader(user.email, 'password123');
 
         const res = await request(app)
-            .put('/v1/user/self')
+            .put('/v1/users/self') // Corrected endpoint
             .set('Authorization', authHeader)
             .send({
                 email: 'newemail@example.com', // Attempt to update restricted field
