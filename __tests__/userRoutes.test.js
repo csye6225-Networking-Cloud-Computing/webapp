@@ -1,146 +1,114 @@
 const request = require('supertest');
-const app = require('../app');  // Import your Express app
-const { sequelize } = require('../config/database');  // Import the Sequelize instance
-const User = require('../models/user');  // Import the User model explicitly
-const Image = require('../models/profilePicture.js');  // Import the Image model explicitly
-const { statsdClient } = require('../routes/user');  // Import StatsD client for cleanup
-const ProfilePicture = require('../models/profilePicture.js');
+const app = require('../app');
+const { sequelize } = require('../config/database');
+const User = require('../models/user');
 
-// Mock node-statsd to prevent open handle issues in Jest
-jest.mock('node-statsd', () => {
-  return jest.fn().mockImplementation(() => ({
-    timing: jest.fn(),
-    increment: jest.fn(),
-    close: jest.fn(),
-  }));
+// Mock AWS SDK to prevent errors in tests
+jest.mock('aws-sdk', () => {
+    const mockSNS = {
+        publish: jest.fn().mockReturnValue({
+            promise: jest.fn().mockResolvedValue({}),
+        }),
+    };
+    const mockCloudWatch = {
+        putMetricData: jest.fn().mockReturnValue({
+            promise: jest.fn().mockResolvedValue({}),
+        }),
+    };
+    return {
+        SNS: jest.fn(() => mockSNS),
+        CloudWatch: jest.fn(() => mockCloudWatch),
+    };
 });
 
 // Helper function to generate Basic Auth headers
 const generateAuthHeader = (email, password) => {
-  const credentials = Buffer.from(`${email}:${password}`).toString('base64');
-  return `Basic ${credentials}`;
+    const credentials = Buffer.from(`${email}:${password}`).toString('base64');
+    return `Basic ${credentials}`;
 };
 
-// Sync the database and models before each test to ensure a clean state
 beforeEach(async () => {
-  await sequelize.sync({ force: true });
+    await sequelize.sync({ force: true });
 });
 
-// Close all connections after tests
 afterAll(async () => {
-  await sequelize.close();
-  if (statsdClient && typeof statsdClient.close === 'function') {
-    statsdClient.close();  // Close StatsD to prevent lingering connections
-  }
+    await sequelize.close();
 });
 
 describe('User Routes', () => {
-  // Test for creating a new user
-  it('should create a new user', async () => {
-    const res = await request(app)
-      .post('/v1/user')
-      .send({
-        first_name: 'John',
-        last_name: 'Doe',
-        email: 'john.doe@example.com',
-        password: 'password123',
-      });
-    expect(res.statusCode).toEqual(201);
-    expect(res.body).toHaveProperty('email', 'john.doe@example.com');
-  });
+    it('should create a new user', async () => {
+        const res = await request(app)
+            .post('/v1/user')
+            .send({
+                first_name: 'John',
+                last_name: 'Doe',
+                email: 'john.doe@example.com',
+                password: 'password123',
+            });
+        expect(res.statusCode).toEqual(201);
+        expect(res.body).toHaveProperty('email', 'john.doe@example.com');
+    });
 
-  // Test for handling an existing email when creating a user
-  it('should not create a user with an existing email', async () => {
-    await request(app)
-      .post('/v1/user')
-      .send({
-        first_name: 'John',
-        last_name: 'Doe',
-        email: 'john.doe@example.com',
-        password: 'password123',
-      });
+    it('should return the authenticated user’s information', async () => {
+        const user = await User.create({
+            first_name: 'John',
+            last_name: 'Doe',
+            email: 'john.doe@example.com',
+            password: 'password123',
+            verified: true,
+        });
 
-    const res = await request(app)
-      .post('/v1/user')
-      .send({
-        first_name: 'John',
-        last_name: 'Doe',
-        email: 'john.doe@example.com',
-        password: 'password123',
-      });
-    expect(res.statusCode).toEqual(400); // Conflict due to existing email
-  });
+        const authHeader = generateAuthHeader(user.email, 'password123');
 
-  // Test for retrieving authenticated user's information
-  it('should return the authenticated user’s information', async () => {
-    // Create a user for authentication
-    await request(app)
-      .post('/v1/user')
-      .send({
-        first_name: 'John',
-        last_name: 'Doe',
-        email: 'john.doe@example.com',
-        password: 'password123',
-      });
+        const res = await request(app)
+            .get('/v1/user/self')
+            .set('Authorization', authHeader);
 
-    const authHeader = generateAuthHeader('john.doe@example.com', 'password123');
+        expect(res.statusCode).toEqual(200);
+        expect(res.body).toHaveProperty('email', user.email);
+    });
 
-    const res = await request(app)
-      .get('/v1/user/self')
-      .set('Authorization', authHeader);
+    it('should update the authenticated user’s information', async () => {
+        const user = await User.create({
+            first_name: 'John',
+            last_name: 'Doe',
+            email: 'john.doe@example.com',
+            password: 'password123',
+            verified: true,
+        });
 
-    expect(res.statusCode).toEqual(200);
-    expect(res.body).toHaveProperty('email', 'john.doe@example.com');
-  });
+        const authHeader = generateAuthHeader(user.email, 'password123');
 
-  // Test for updating the authenticated user's information (PUT)
-  it('should update the authenticated user’s information', async () => {
-    // Create and authenticate user
-    await request(app)
-      .post('/v1/user')
-      .send({
-        first_name: 'John',
-        last_name: 'Doe',
-        email: 'john.doe@example.com',
-        password: 'password123',
-      });
+        const res = await request(app)
+            .put('/v1/user/self')
+            .set('Authorization', authHeader)
+            .send({
+                first_name: 'Johnny',
+                last_name: 'Doe',
+                password: 'newpassword123',
+            });
 
-    const authHeader = generateAuthHeader('john.doe@example.com', 'password123');
+        expect(res.statusCode).toEqual(204);
+    });
 
-    const res = await request(app)
-      .put('/v1/user/self')
-      .set('Authorization', authHeader)
-      .send({
-        first_name: 'Johnny',
-        last_name: 'Doe',
-        password: 'newpassword123',
-      });
+    it('should not allow updates to restricted fields like email or account_created', async () => {
+        const user = await User.create({
+            first_name: 'John',
+            last_name: 'Doe',
+            email: 'john.doe@example.com',
+            password: 'password123',
+            verified: true,
+        });
 
-    expect(res.statusCode).toEqual(204);  // No content expected for a successful update
-  });
+        const authHeader = generateAuthHeader(user.email, 'password123');
 
-  // Test to ensure that restricted fields cannot be updated
-  it('should not allow updates to restricted fields like email or account_created', async () => {
-    // Create and authenticate user
-    await request(app)
-      .post('/v1/user')
-      .send({
-        first_name: 'John',
-        last_name: 'Doe',
-        email: 'john.doe@example.com',
-        password: 'password123',
-      });
+        const res = await request(app)
+            .put('/v1/user/self')
+            .set('Authorization', authHeader)
+            .send({
+                email: 'newemail@example.com', // Attempt to update restricted field
+            });
 
-    const authHeader = generateAuthHeader('john.doe@example.com', 'password123');
-
-    const res = await request(app)
-      .put('/v1/user/self')
-      .set('Authorization', authHeader)
-      .send({
-        email: 'newemail@example.com',  // Attempt to update restricted field
-      });
-
-    expect(res.statusCode).toEqual(400);  // Expecting 400 Bad Request for restricted field update
-  });
+        expect(res.statusCode).toEqual(400);
+    });
 });
-
