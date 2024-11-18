@@ -1,127 +1,119 @@
+const AWSMock = require('aws-sdk-mock');
+const AWS = require('aws-sdk');
 const request = require('supertest');
 const app = require('../app');
 const { sequelize } = require('../config/database');
 const User = require('../models/user');
 
-// Mock AWS SDK before importing the app
-jest.mock('aws-sdk', () => {
-  const mockSNS = {
-      publish: jest.fn().mockReturnValue({
-          promise: jest.fn().mockResolvedValue({}),
-      }),
-  };
-  const mockCloudWatch = {
-      putMetricData: jest.fn().mockReturnValue({
-          promise: jest.fn().mockResolvedValue({}),
-      }),
-  };
-  const mockS3 = {
-      upload: jest.fn().mockReturnValue({
-          promise: jest.fn().mockResolvedValue({}),
-      }),
-      getObject: jest.fn().mockReturnValue({
-          promise: jest.fn().mockResolvedValue({}),
-      }),
-  };
-  return {
-      SNS: jest.fn(() => mockSNS),
-      CloudWatch: jest.fn(() => mockCloudWatch),
-      S3: jest.fn(() => mockS3),
-      config: { update: jest.fn() },
-  };
-});
+beforeAll(() => {
+    // Mock S3 methods
+    AWSMock.mock('S3', 'upload', (params, callback) => {
+        callback(null, { Location: 'mocked-url' });
+    });
+    AWSMock.mock('S3', 'getObject', (params, callback) => {
+        callback(null, { Body: 'mocked-body' });
+    });
 
-const request = require('supertest');
-const app = require('../app');
-const { sequelize } = require('../config/database');
-const User = require('../models/user');
+    // Mock SNS publish
+    AWSMock.mock('SNS', 'publish', (params, callback) => {
+        callback(null, { MessageId: 'mocked-message-id' });
+    });
 
-beforeEach(async () => {
-  await sequelize.sync({ force: true }); // Reset database before each test
+    // Mock CloudWatch putMetricData
+    AWSMock.mock('CloudWatch', 'putMetricData', (params, callback) => {
+        callback(null, {});
+    });
+
+    // Mock other AWS services if used
 });
 
 afterEach(() => {
-  jest.clearAllMocks(); // Clear mocks after each test
+    AWSMock.restore(); // Restore all mocks after each test
+    jest.clearAllMocks();
 });
 
 afterAll(async () => {
-  await sequelize.close(); // Close Sequelize connection after all tests
+    await sequelize.close();
 });
 
 describe('User Routes', () => {
-  it('should create a new user', async () => {
-      const res = await request(app)
-          .post('/v1/user') // Corrected endpoint
-          .send({
-              first_name: 'John',
-              last_name: 'Doe',
-              email: 'john.doe@example.com',
-              password: 'password123',
-          });
-      expect(res.statusCode).toEqual(201);
-      expect(res.body).toHaveProperty('email', 'john.doe@example.com');
-  });
+    beforeEach(async () => {
+        await sequelize.sync({ force: true }); // Reset database before each test
+    });
 
-  it('should return the authenticated user’s information', async () => {
-      const user = await User.create({
-          firstName: 'John',
-          lastName: 'Doe',
-          email: 'john.doe@example.com',
-          password: 'password123',
-          verified: true,
-      });
+    it('should create a new user', async () => {
+        const res = await request(app)
+            .post('/v1/user')
+            .send({
+                first_name: 'John',
+                last_name: 'Doe',
+                email: 'john.doe@example.com',
+                password: 'password123',
+            });
+        expect(res.statusCode).toEqual(201);
+        expect(res.body).toHaveProperty('email', 'john.doe@example.com');
+    });
 
-      const authHeader = `Basic ${Buffer.from('john.doe@example.com:password123').toString('base64')}`;
+    it('should return the authenticated user’s information', async () => {
+        const user = await User.create({
+            firstName: 'John',
+            lastName: 'Doe',
+            email: 'john.doe@example.com',
+            password: 'password123',
+            verified: true,
+        });
 
-      const res = await request(app)
-          .get('/v1/user/self') // Corrected endpoint
-          .set('Authorization', authHeader);
+        const authHeader = `Basic ${Buffer.from('john.doe@example.com:password123').toString('base64')}`;
 
-      expect(res.statusCode).toEqual(200);
-      expect(res.body).toHaveProperty('email', user.email);
-  });
+        const res = await request(app)
+            .get('/v1/user/self')
+            .set('Authorization', authHeader);
 
-  it('should update the authenticated user’s information', async () => {
-      const user = await User.create({
-          firstName: 'John',
-          lastName: 'Doe',
-          email: 'john.doe@example.com',
-          password: 'password123',
-          verified: true,
-      });
+        expect(res.statusCode).toEqual(200);
+        expect(res.body).toHaveProperty('email', user.email);
+    });
 
-      const authHeader = `Basic ${Buffer.from('john.doe@example.com:password123').toString('base64')}`;
+    it('should update the authenticated user’s information', async () => {
+        const user = await User.create({
+            firstName: 'John',
+            lastName: 'Doe',
+            email: 'john.doe@example.com',
+            password: 'password123',
+            verified: true,
+        });
 
-      const res = await request(app)
-          .put('/v1/user/self') // Corrected endpoint
-          .set('Authorization', authHeader)
-          .send({
-              first_name: 'Johnny',
-              last_name: 'Smith',
-              password: 'newpassword123',
-          });
+        const authHeader = `Basic ${Buffer.from('john.doe@example.com:password123').toString('base64')}`;
 
-      expect(res.statusCode).toEqual(204);
-  });
+        const res = await request(app)
+            .put('/v1/user/self')
+            .set('Authorization', authHeader)
+            .send({
+                first_name: 'Johnny',
+                last_name: 'Smith',
+                password: 'newpassword123',
+            });
 
-  it('should not allow updates to restricted fields like email or account_created', async () => {
-      const user = await User.create({
-          firstName: 'John',
-          lastName: 'Doe',
-          email: 'john.doe@example.com',
-          password: 'password123',
-          verified: true,
-      });
+        expect(res.statusCode).toEqual(204);
+    });
 
-      const authHeader = `Basic ${Buffer.from('john.doe@example.com:password123').toString('base64')}`;
+    it('should not allow updates to restricted fields like email or account_created', async () => {
+        const user = await User.create({
+            firstName: 'John',
+            lastName: 'Doe',
+            email: 'john.doe@example.com',
+            password: 'password123',
+            verified: true,
+        });
 
-      const res = await request(app)
-          .put('/v1/user/self') // Corrected endpoint
-          .set('Authorization', authHeader)
-          .send({
-              email: 'newemail@example.com', // Attempt to update restricted field
-          });
+        const authHeader = `Basic ${Buffer.from('john.doe@example.com:password123').toString('base64')}`;
 
-      expect(res.statusCode).toEqual(400);
-  });
+        const res = await request(app)
+            .put('/v1/user/self')
+            .set('Authorization', authHeader)
+            .send({
+                email: 'newemail@example.com', // Attempt to update restricted field
+            });
+
+        expect(res.statusCode).toEqual(400);
+    });
 });
