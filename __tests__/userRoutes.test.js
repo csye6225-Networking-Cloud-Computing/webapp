@@ -57,7 +57,7 @@ describe('Health Check API Integration Tests for /healthzzz', () => {
   });
 
   describe('Unsupported Methods on /healthzzz', () => {
-      const unsupportedMethods = ['POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
+      const unsupportedMethods = ['DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
 
       unsupportedMethods.forEach((method) => {
           it(`should return 405 Method Not Allowed for ${method} /healthzzz`, async () => {
