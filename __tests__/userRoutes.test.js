@@ -1,10 +1,3 @@
-const AWSMock = require('aws-sdk-mock');
-const AWS = require('aws-sdk');
-const request = require('supertest');
-const app = require('../app');
-const { sequelize } = require('../config/database');
-const User = require('../models/user');
-
 // __tests__/userRoutes.test.js
 
 // 1. Mock 'node-statsd' before importing the app to prevent real UDP connections
