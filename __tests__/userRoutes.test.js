@@ -3,31 +3,32 @@ const request = require('supertest');
 const app = require('../app'); // Adjust the path if necessary
 const { sequelize } = require('../config/database');
 
-// Mock sequelize.authenticate()
-jest.mock('../config/database', () => {
-    const originalModule = jest.requireActual('../config/database');
-    return {
-        ...originalModule,
-        sequelize: {
-            ...originalModule.sequelize,
-            authenticate: jest.fn(),
-        },
-    };
+// Spy on sequelize.authenticate before all tests
+beforeAll(() => {
+    jest.spyOn(sequelize, 'authenticate');
 });
 
-describe('Health Check API Integration Tests', () => {
-    afterAll(async () => {
-        // Close the Sequelize connection after all tests
-        await sequelize.close();
-    });
+// Reset mocks before each test to ensure isolation
+beforeEach(() => {
+    sequelize.authenticate.mockReset();
+});
 
-    describe('GET /health', () => {
+afterAll(async () => {
+    // Restore the original implementation of authenticate
+    sequelize.authenticate.mockRestore();
+    // Close the Sequelize connection after all tests
+    await sequelize.close();
+});
+
+describe('Health Check API Integration Tests for /healthzzz', () => {
+    describe('GET /healthzzz', () => {
         it('should return 200 OK when DB connection is successful', async () => {
             // Mock authenticate to resolve successfully
             sequelize.authenticate.mockResolvedValue();
 
-            const res = await request(app).get('/health');
+            const res = await request(app).get('/healthzzz');
 
+            expect(sequelize.authenticate).toHaveBeenCalledTimes(1);
             expect(res.statusCode).toBe(200);
             expect(res.headers['cache-control']).toBe('no-cache, no-store, must-revalidate');
             expect(res.headers['pragma']).toBe('no-cache');
@@ -38,19 +39,21 @@ describe('Health Check API Integration Tests', () => {
             // Mock authenticate to reject with an error
             sequelize.authenticate.mockRejectedValue(new Error('DB Connection Failed'));
 
-            const res = await request(app).get('/health');
+            const res = await request(app).get('/healthzzz');
 
+            expect(sequelize.authenticate).toHaveBeenCalledTimes(1);
             expect(res.statusCode).toBe(503);
             expect(res.headers['cache-control']).toBe('no-cache, no-store, must-revalidate');
+            expect(res.headers['pragma']).toBe('no-cache');
         });
     });
 
-    describe('Unsupported Methods on /health', () => {
+    describe('Unsupported Methods on /healthzzz', () => {
         const unsupportedMethods = ['POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
 
         unsupportedMethods.forEach((method) => {
-            it(`should return 405 Method Not Allowed for ${method} /health`, async () => {
-                const res = await request(app)[method.toLowerCase()]('/health');
+            it(`should return 405 Method Not Allowed for ${method} /healthzzz`, async () => {
+                const res = await request(app)[method.toLowerCase()]('/healthzzz');
 
                 expect(res.statusCode).toBe(405);
                 expect(res.headers['allow']).toBe('GET');
