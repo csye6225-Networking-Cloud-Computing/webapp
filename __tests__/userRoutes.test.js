@@ -15,52 +15,29 @@ jest.mock('aws-sdk', () => {
             promise: jest.fn().mockResolvedValue({}),
         }),
     };
-    const mockS3 = {
-        upload: jest.fn().mockReturnValue({
-            promise: jest.fn().mockResolvedValue({
-                Location: 'https://mock-bucket.s3.amazonaws.com/mock-key',
-            }),
-        }),
-        deleteObject: jest.fn().mockReturnValue({
-            promise: jest.fn().mockResolvedValue({}),
-        }),
-    };
     return {
-        config: { update: jest.fn() },
         SNS: jest.fn(() => mockSNS),
         CloudWatch: jest.fn(() => mockCloudWatch),
-        S3: jest.fn(() => mockS3),
+        config: { update: jest.fn() },
     };
 });
 
-// Mock StatsD
-jest.mock('node-statsd', () => {
-    return jest.fn().mockImplementation(() => ({
-        timing: jest.fn(),
-        increment: jest.fn(),
-    }));
+beforeEach(async () => {
+    await sequelize.sync({ force: true }); // Reset database before each test
 });
 
-// Helper function to generate Basic Auth headers
-const generateAuthHeader = (email, password) => {
-    const credentials = Buffer.from(`${email}:${password}`).toString('base64');
-    return `Basic ${credentials}`;
-};
-
-// Clear mocks after each test
 afterEach(() => {
-    jest.clearAllMocks();
+    jest.clearAllMocks(); // Clear mocks after each test
 });
 
-// Close Sequelize connection after all tests
 afterAll(async () => {
-    await sequelize.close();
+    await sequelize.close(); // Close Sequelize connection after all tests
 });
 
 describe('User Routes', () => {
     it('should create a new user', async () => {
         const res = await request(app)
-            .post('/v1/users')
+            .post('/v1/user') // Corrected endpoint
             .send({
                 first_name: 'John',
                 last_name: 'Doe',
@@ -73,17 +50,17 @@ describe('User Routes', () => {
 
     it('should return the authenticated user’s information', async () => {
         const user = await User.create({
-            first_name: 'John',
-            last_name: 'Doe',
+            firstName: 'John',
+            lastName: 'Doe',
             email: 'john.doe@example.com',
             password: 'password123',
             verified: true,
         });
 
-        const authHeader = generateAuthHeader(user.email, 'password123');
+        const authHeader = `Basic ${Buffer.from('john.doe@example.com:password123').toString('base64')}`;
 
         const res = await request(app)
-            .get('/v1/users/self')
+            .get('/v1/user/self') // Corrected endpoint
             .set('Authorization', authHeader);
 
         expect(res.statusCode).toEqual(200);
@@ -92,21 +69,21 @@ describe('User Routes', () => {
 
     it('should update the authenticated user’s information', async () => {
         const user = await User.create({
-            first_name: 'John',
-            last_name: 'Doe',
+            firstName: 'John',
+            lastName: 'Doe',
             email: 'john.doe@example.com',
             password: 'password123',
             verified: true,
         });
 
-        const authHeader = generateAuthHeader(user.email, 'password123');
+        const authHeader = `Basic ${Buffer.from('john.doe@example.com:password123').toString('base64')}`;
 
         const res = await request(app)
-            .put('/v1/users/self')
+            .put('/v1/user/self') // Corrected endpoint
             .set('Authorization', authHeader)
             .send({
                 first_name: 'Johnny',
-                last_name: 'Doe',
+                last_name: 'Smith',
                 password: 'newpassword123',
             });
 
@@ -115,17 +92,17 @@ describe('User Routes', () => {
 
     it('should not allow updates to restricted fields like email or account_created', async () => {
         const user = await User.create({
-            first_name: 'John',
-            last_name: 'Doe',
+            firstName: 'John',
+            lastName: 'Doe',
             email: 'john.doe@example.com',
             password: 'password123',
             verified: true,
         });
 
-        const authHeader = generateAuthHeader(user.email, 'password123');
+        const authHeader = `Basic ${Buffer.from('john.doe@example.com:password123').toString('base64')}`;
 
         const res = await request(app)
-            .put('/v1/users/self')
+            .put('/v1/user/self') // Corrected endpoint
             .set('Authorization', authHeader)
             .send({
                 email: 'newemail@example.com', // Attempt to update restricted field
