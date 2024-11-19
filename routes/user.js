@@ -323,29 +323,33 @@ router.put('/self', authenticate, checkDatabaseConnection, checkVerificationStat
 router.get('/verify', checkDatabaseConnection, async (req, res) => {
   const { user: userId, token } = req.query;
   if (!userId || !token) {
-    return res.status(400).end();
+    return res.status(400).json({ error: 'Missing user or token' });
   }
   try {
     const user = await User.findByPk(userId);
     if (!user) {
-      return res.status(400).end();
+      return res.status(400).json({ error: 'User not found' });
     }
     if (user.verified) {
-      return res.status(200).end();
+      return res.status(200).json({ message: 'User already verified' });
     }
     if (user.verification_token !== token) {
-      return res.status(400).end();
+      return res.status(400).json({ error: 'Invalid verification token' });
     }
     if (new Date(user.token_expires_at) < new Date()) {
-      return res.status(403).end();
+      return res.status(403).json({ error: 'Verification link has expired. Please request a new one.' });
     }
-    //user.verified = true;
-    //user.verification_token = null;
-    //user.token_expires_at = null;
+
+    // Mark the user as verified
+    user.verified = true;
+    user.verification_token = null;
+    user.token_expires_at = null;
     await user.save();
-    res.status(200).end();
+
+    res.status(200).json({ message: 'User verified successfully' });
   } catch (error) {
-    res.status(500).end();
+    console.error('Error verifying user:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
