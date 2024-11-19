@@ -19,34 +19,19 @@ const bucketName = process.env.S3_BUCKET_NAME;
 const sns = new AWS.SNS({ region: process.env.AWS_REGION });
 
 const publishVerificationMessage = async (userId, email, token) => {
-  // Use base URL from environment or fallback to demo URL
   let baseURL = process.env.BASE_URL || 'demo.csyeproject.me';
-
-  // Ensure the base URL starts with 'http://'
   if (!baseURL.startsWith('http://') && !baseURL.startsWith('https://')) {
     baseURL = `http://${baseURL}`;
   }
-
-  // Construct the verification link
-  const verificationLink = `${baseURL}/v1/user/verify?user=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
-  
-  // Debugging logs
+  const activationLink = `${baseURL}/v1/user/verify?user=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
   console.log('UserId:', userId);
   console.log('Token:', token);
-  console.log('Verification Link:', verificationLink);
-
-  // Construct SNS message
-  const message = JSON.stringify({
-    userId,
-    email,
-    token,
-    verificationLink,
-  });
+  console.log('Verification Link:', activationLink);
+  const message = JSON.stringify({ userId, email, token, activationLink });
   const params = {
     Message: message,
     TopicArn: process.env.SNS_TOPIC_ARN,
   };
-
   try {
     console.log('Publishing message to SNS:', params);
     await sns.publish(params).promise();
@@ -284,7 +269,7 @@ router.post('/', checkDatabaseConnection, async (req, res) => {
       token_expires_at: expiresAt,
     });
     await publishVerificationMessage(newUser.id, newUser.email, token);
-    const { password: _, verification_token: __, token_expires_at: ___, ...userResponse } = newUser.toJSON();
+    const { password: _, verification_token: __, token_expires_at: ___, verified: ____, ...userResponse } = newUser.toJSON();
     res.status(201).json({
       ...userResponse,
       account_created: convertToEST(newUser.account_created),
@@ -301,7 +286,10 @@ router.get('/self', validateNoBodyOrParams, authenticate, checkDatabaseConnectio
     if (!user) {
       return res.status(404).end();
     }
-    const { password: _, ...userResponse } = user.toJSON();
+    if (!user.verified) {
+      return res.status(403).end();
+    }
+    const { password: _, verification_token: __, token_expires_at: ___, verified: ____, ...userResponse } = user.toJSON();
     res.status(200).json({
       ...userResponse,
       account_created: convertToEST(user.account_created),
@@ -312,7 +300,7 @@ router.get('/self', validateNoBodyOrParams, authenticate, checkDatabaseConnectio
   }
 });
 
-router.put('/self', authenticate, checkDatabaseConnection, async (req, res) => {
+router.put('/self', authenticate, checkDatabaseConnection, checkVerificationStatus, async (req, res) => {
   if (Object.keys(req.query).length > 0 || Object.keys(req.body).some(field => !['first_name', 'last_name', 'password'].includes(field))) {
     return res.status(400).end();
   }
@@ -351,9 +339,9 @@ router.get('/verify', checkDatabaseConnection, async (req, res) => {
     if (new Date(user.token_expires_at) < new Date()) {
       return res.status(403).end();
     }
-    user.verified = true;
-    user.verification_token = null;
-    user.token_expires_at = null;
+    //user.verified = true;
+    //user.verification_token = null;
+    //user.token_expires_at = null;
     await user.save();
     res.status(200).end();
   } catch (error) {
