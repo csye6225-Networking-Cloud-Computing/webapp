@@ -353,4 +353,4 @@ router.get('/verify', checkDatabaseConnection, async (req, res) => {
   }
 });
 
-modules.exports = router;
+module.exports = router;
