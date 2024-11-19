@@ -19,14 +19,38 @@ const bucketName = process.env.S3_BUCKET_NAME;
 const sns = new AWS.SNS({ region: process.env.AWS_REGION });
 
 const publishVerificationMessage = async (userId, email, token) => {
-  const verificationLink = `http://demo.csyeproject.me/v1/user/verify?user=${userId}&token=${token}`;
-  const message = JSON.stringify({ userId, email, token, verificationLink });
+  // Use base URL from environment or fallback to demo URL
+  let baseURL = process.env.BASE_URL || 'demo.csyeproject.me';
+
+  // Ensure the base URL starts with 'http://'
+  if (!baseURL.startsWith('http://') && !baseURL.startsWith('https://')) {
+    baseURL = `http://${baseURL}`;
+  }
+
+  // Construct the verification link
+  const verificationLink = `${baseURL}/v1/user/verify?user=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
+  
+  // Debugging logs
+  console.log('UserId:', userId);
+  console.log('Token:', token);
+  console.log('Verification Link:', verificationLink);
+
+  // Construct SNS message
+  const message = JSON.stringify({
+    userId,
+    email,
+    token,
+    verificationLink,
+  });
   const params = {
     Message: message,
     TopicArn: process.env.SNS_TOPIC_ARN,
   };
+
   try {
+    console.log('Publishing message to SNS:', params);
     await sns.publish(params).promise();
+    console.log('Message published successfully');
   } catch (error) {
     console.error(`Failed to publish verification message for user ${email}:`, error);
   }
