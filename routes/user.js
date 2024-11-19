@@ -352,3 +352,5 @@ router.get('/verify', checkDatabaseConnection, async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+modules.exports = router;
