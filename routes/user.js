@@ -325,17 +325,24 @@ router.get('/verify', checkDatabaseConnection, async (req, res) => {
   if (!userId || !token) {
     return res.status(400).json({ error: 'Missing user or token' });
   }
+
   try {
     const user = await User.findByPk(userId);
     if (!user) {
       return res.status(400).json({ error: 'User not found' });
     }
+
+    // If the user is already verified, return 200 OK immediately
     if (user.verified) {
       return res.status(200).json({ message: 'User already verified' });
     }
+
+    // Check if the token is valid
     if (user.verification_token !== token) {
       return res.status(400).json({ error: 'Invalid verification token' });
     }
+
+    // Check if the token has expired
     if (new Date(user.token_expires_at) < new Date()) {
       return res.status(403).json({ error: 'Verification link has expired. Please request a new one.' });
     }
@@ -354,3 +361,4 @@ router.get('/verify', checkDatabaseConnection, async (req, res) => {
 });
 
 module.exports = router;
+
