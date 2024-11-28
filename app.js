@@ -156,7 +156,7 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Sync Sequelize schema and log errors to CloudWatch
-sequelize.sync({ force: true })
+sequelize.sync({ alter: true })
     .then(() => logToFile('Database synchronized successfully'))
     .catch(err => {
         logToFile(`Detailed Error: ${JSON.stringify(err, null, 2)}`);
@@ -214,6 +214,7 @@ app.use(cors());
 
 // Define routes and add database status middleware
 app.use('/healthz', checkDBStatusMiddleware, healthRoutes);
+app.use('/cicd', checkDBStatusMiddleware, healthRoutes);
 app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
 
 // Add a 404 handler for undefined routes
