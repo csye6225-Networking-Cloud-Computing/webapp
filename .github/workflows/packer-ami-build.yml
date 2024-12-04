@@ -130,7 +130,7 @@ jobs:
       # Set Auto Scaling Group Name directly
       - name: Set Auto Scaling Group Name
         run: |
-          ASG_NAME="demo-app-asg"  # Replace with your actual ASG name
+          ASG_NAME="demo-asg"  # Replace with your actual ASG name
           if [ -z "$ASG_NAME" ]; then
             echo "Error: Auto Scaling Group name is not set."
             exit 1
