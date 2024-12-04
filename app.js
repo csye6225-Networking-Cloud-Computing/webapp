@@ -214,7 +214,7 @@ app.use(cors());
 
 // Define routes and add database status middleware
 app.use('/healthz', checkDBStatusMiddleware, healthRoutes);
-//app.use('/cicd', checkDBStatusMiddleware, healthRoutes);
+app.use('/cicd', checkDBStatusMiddleware, healthRoutes);
 app.use('/v1/user', checkDBStatusMiddleware, userRoutes);
 
 // Add a 404 handler for undefined routes
