@@ -21,7 +21,7 @@ const sns = new AWS.SNS({ region: process.env.AWS_REGION });
 const publishVerificationMessage = async (userId, email, token) => {
   let baseURL = process.env.BASE_URL || 'demo.csyeproject.me';
   if (!baseURL.startsWith('http://') && !baseURL.startsWith('https://')) {
-    baseURL = `http://${baseURL}`;
+    baseURL = `https://${baseURL}`;
   }
   const activationLink = `${baseURL}/v1/user/verify?user=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
   console.log('UserId:', userId);
